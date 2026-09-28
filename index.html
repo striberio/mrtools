@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools</title>
 <style>
-:root{--bg:#faf9f6;--card:#fff;--ink:#1f2328;--mute:#6b7280;--line:#e5e2db;--acc:#0f766e;--accInk:#fff;--sel:#e6f4f1;--bad:#b42318}
-@media (prefers-color-scheme:dark){:root{--bg:#161816;--card:#202320;--ink:#ececea;--mute:#9aa09a;--line:#333833;--acc:#2dd4bf;--accInk:#062b27;--sel:#1d3733;--bad:#f97066}}
+:root{--bg:#faf9f6;--card:#fff;--ink:#1f2328;--mute:#6b7280;--line:#e5e2db;--acc:#1f6fbf;--accInk:#fff;--sel:#e7f1fb;--bad:#b42318}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161816;--card:#202320;--ink:#ececea;--mute:#9aa09a;--line:#333833;--acc:#8cc8ff;--accInk:#0b2540;--sel:#1e2b38;--bad:#f97066;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#161816;--card:#202320;--ink:#ececea;--mute:#9aa09a;--line:#333833;--acc:#8cc8ff;--accInk:#0b2540;--sel:#1e2b38;--bad:#f97066;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .app{display:grid;grid-template-columns:300px 1fr;gap:16px;max-width:1100px;margin:0 auto;padding:16px}
@@ -27,18 +28,25 @@ button.d{color:var(--bad)}
 .mute{color:var(--mute);font-size:13px}
 label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 .hide{display:none}
-#login{max-width:340px;margin:12vh auto;padding:0 16px}
+#login{max-width:340px;margin:10vh auto;padding:0 16px}
+.top{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px 0;max-width:1100px;margin:0 auto}
+.top button{padding:5px 12px;font-size:13px}
+.tabs{display:flex;gap:4px;margin-bottom:10px;padding:3px;background:var(--bg);border:1px solid var(--line);border-radius:10px}
+.tabs button{flex:1;border:0;background:transparent;padding:6px 8px;color:var(--mute)}
+.tabs button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 </style>
 </head>
 <body>
+
+<div class="top"><button id="theme" type="button"></button><button id="lang" type="button"></button></div>
 
 <div id="login" class="hide">
   <div class="panel">
     <h1>MRTools</h1>
     <form id="lf">
-      <label for="em">Email</label><input id="em" type="email" autocomplete="username" required>
-      <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required>
-      <div class="row"><button class="p" type="submit">Sign in</button><button type="button" id="reset">Forgot password</button></div>
+      <label for="em" data-i18n="email"></label><input id="em" type="email" autocomplete="username" required>
+      <label for="pw" data-i18n="password"></label><input id="pw" type="password" autocomplete="current-password" required>
+      <div class="row"><button class="p" type="submit" data-i18n="signIn"></button><button type="button" id="reset" data-i18n="forgot"></button></div>
       <div class="mute" id="lmsg" style="margin-top:8px"></div>
     </form>
   </div>
@@ -47,31 +55,32 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 <div class="app hide" id="app">
   <div class="panel">
     <h1>MRTools</h1>
-    <input id="q" placeholder="Search house, room, or text…" autocomplete="off">
-    <div class="row"><button class="p" id="add">+ New</button><button id="imp">Bulk import</button><button id="out">Sign out</button></div>
+    <div class="tabs" id="tabs"><button data-cat="houses" class="on" data-i18n="tabHouses"></button><button data-cat="messages" data-i18n="tabMessages"></button></div>
+    <input id="q" autocomplete="off">
+    <div class="row"><button class="p" id="add" data-i18n="new"></button><button id="imp" data-i18n="bulk"></button><button id="out" data-i18n="signOut"></button></div>
     <div class="mute" id="count" style="margin-top:8px"></div>
     <div class="list" id="list"></div>
   </div>
   <div class="panel">
-    <div class="mute" id="empty">Select a house on the left, or add a new one.</div>
+    <div class="mute" id="empty"></div>
     <div id="ed" class="hide">
-      <label for="nm">House / room name</label>
+      <label for="nm" id="nmlbl"></label>
       <input id="nm">
-      <label for="tx">Instructions <span class="mute">(use {guest} where the guest's name goes)</span></label>
+      <label for="tx"><span id="txlbl"></span> <span class="mute" data-i18n="guestHint"></span></label>
       <textarea id="tx"></textarea>
-      <label for="gn">Guest name (fills {guest} when copying)</label>
-      <input id="gn" placeholder="e.g. Maria">
+      <label for="gn" data-i18n="guestName"></label>
+      <input id="gn" data-i18n-ph="guestPh">
       <div class="row">
-        <button class="p" id="copy">Copy message</button>
-        <button id="save">Save changes</button>
-        <button class="d" id="del">Delete</button>
+        <button class="p" id="copy" data-i18n="copy"></button>
+        <button id="save" data-i18n="save"></button>
+        <button class="d" id="del" data-i18n="delete"></button>
         <span class="mute" id="msg"></span>
       </div>
     </div>
     <div id="imppane" class="hide">
-      <label for="imptx">Paste many at once. Separate houses with a line containing only <b>###</b>. The first line of each block is the name, the rest is the instructions.</label>
+      <label for="imptx" id="implbl"></label>
       <textarea id="imptx"></textarea>
-      <div class="row"><button class="p" id="impgo">Import</button><button id="impx">Cancel</button><span class="mute" id="impmsg"></span></div>
+      <div class="row"><button class="p" id="impgo" data-i18n="import"></button><button id="impx" data-i18n="cancel"></button><span class="mute" id="impmsg"></span></div>
     </div>
   </div>
 </div>
@@ -92,10 +101,47 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const col = collection(db, "houses");
+
+const I18N = {
+  it: {
+    other: "English", toDark: "Tema scuro", toLight: "Tema chiaro", email: "Email", password: "Password", signIn: "Accedi", forgot: "Password dimenticata",
+    wrongLogin: "Email o password errati.", typeEmail: "Scrivi prima la tua email.",
+    resetSent: "Se l'account esiste, è stata inviata un'email per reimpostare la password.", resetFail: "Impossibile inviare l'email di reimpostazione.",
+    tabHouses: "Check-in", tabMessages: "Messaggi", new: "+ Nuovo", bulk: "Importa in blocco", signOut: "Esci",
+    shown: (a, b) => a + " di " + b + " visualizzati",
+    guestHint: "(usa {guest} dove va il nome dell'ospite)", guestName: "Nome dell'ospite (sostituisce {guest} quando copi)", guestPh: "es. Maria",
+    copy: "Copia messaggio", save: "Salva modifiche", delete: "Elimina", import: "Importa", cancel: "Annulla",
+    saved: "Salvato ✓", saveFail: "Impossibile salvare", delFail: "Impossibile eliminare", copied: "Copiato ✓", copyFail: "Copia non riuscita",
+    addFail: "Impossibile aggiungere: ", nothing: "Niente da importare", impFail: "Importazione non riuscita: ", loadFail: "Impossibile caricare i dati: ",
+    imp: t => `Incolla più voci insieme. Separa le voci con una riga che contiene solo <b>###</b>. La prima riga di ogni blocco è il nome, il resto è ${t}.`,
+    houses: { q: "Cerca casa, stanza o testo…", empty: "Seleziona una casa a sinistra o aggiungine una nuova.", nm: "Nome casa / stanza", tx: "Istruzioni", imp: "le istruzioni", newName: "Nuova casa", del: "Eliminare questa casa e le sue istruzioni?" },
+    messages: { q: "Cerca messaggi…", empty: "Seleziona un messaggio a sinistra o aggiungine uno nuovo.", nm: "Titolo del messaggio", tx: "Messaggio", imp: "il messaggio", newName: "Nuovo messaggio", del: "Eliminare questo messaggio?" }
+  },
+  en: {
+    other: "Italiano", toDark: "Dark mode", toLight: "Light mode", email: "Email", password: "Password", signIn: "Sign in", forgot: "Forgot password",
+    wrongLogin: "Wrong email or password.", typeEmail: "Type your email first.",
+    resetSent: "If that account exists, a reset email was sent.", resetFail: "Could not send reset email.",
+    tabHouses: "Check-in", tabMessages: "Messages", new: "+ New", bulk: "Bulk import", signOut: "Sign out",
+    shown: (a, b) => a + " of " + b + " shown",
+    guestHint: "(use {guest} where the guest's name goes)", guestName: "Guest name (fills {guest} when copying)", guestPh: "e.g. Maria",
+    copy: "Copy message", save: "Save changes", delete: "Delete", import: "Import", cancel: "Cancel",
+    saved: "Saved ✓", saveFail: "Could not save", delFail: "Could not delete", copied: "Copied ✓", copyFail: "Copy failed",
+    addFail: "Could not add: ", nothing: "Nothing to import", impFail: "Import failed: ", loadFail: "Could not load data: ",
+    imp: t => `Paste many at once. Separate entries with a line containing only <b>###</b>. The first line of each block is the name, the rest is ${t}.`,
+    houses: { q: "Search house, room, or text…", empty: "Select a house on the left, or add a new one.", nm: "House / room name", tx: "Instructions", imp: "the instructions", newName: "New house", del: "Delete this house and its instructions?" },
+    messages: { q: "Search messages…", empty: "Select a message on the left, or add a new one.", nm: "Message title", tx: "Message", imp: "the message", newName: "New message", del: "Delete this message?" }
+  }
+};
+const CATS = { houses: 1, messages: 1 };
+let lang = "it";
+try { if (I18N[localStorage.getItem("mrtools.lang")]) lang = localStorage.getItem("mrtools.lang"); } catch (e) {}
+const T = () => I18N[lang];
+const C = () => T()[cat];
 
 const $ = i => document.getElementById(i);
-let items = [], sel = null, unsub = null;
+let data = { houses: [], messages: [] }, cat = "houses", sel = null, unsubs = [];
+try { if (CATS[localStorage.getItem("mrtools.cat")]) cat = localStorage.getItem("mrtools.cat"); } catch (e) {}
+const items = () => data[cat];
 
 const esc = s => { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; };
 const newId = () => "h" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -104,75 +150,113 @@ function show(w) { $("empty").classList.toggle("hide", w !== "empty"); $("ed").c
 
 function renderList() {
   const q = $("q").value.trim().toLowerCase();
-  const f = items.filter(x => !q || (x.name + " " + x.text).toLowerCase().includes(q));
-  $("count").textContent = f.length + " of " + items.length + " shown";
+  const f = items().filter(x => !q || (x.name + " " + x.text).toLowerCase().includes(q));
+  $("count").textContent = T().shown(f.length, items().length);
   $("list").innerHTML = f.map(x =>
     `<div class="item${x.id === sel ? " on" : ""}" data-id="${x.id}">${esc(x.name || "(unnamed)")}<small>${esc((x.text || "").replace(/\s+/g, " ").slice(0, 70))}</small></div>`).join("");
 }
 function open(id) {
-  const x = items.find(i => i.id === id); if (!x) return;
+  const x = items().find(i => i.id === id); if (!x) return;
   sel = id; $("nm").value = x.name; $("tx").value = x.text; show("ed"); renderList();
 }
 
 $("list").addEventListener("click", e => { const n = e.target.closest(".item"); if (n) open(n.dataset.id); });
 $("q").addEventListener("input", renderList);
 
+function applyText() {
+  const t = T(), c = C();
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(n => { n.textContent = t[n.dataset.i18n]; });
+  document.querySelectorAll("[data-i18n-ph]").forEach(n => { n.placeholder = t[n.dataset.i18nPh]; });
+  $("lang").textContent = t.other;
+  const dark = isDark(); $("theme").textContent = dark ? "☀" : "☾"; $("theme").title = dark ? t.toLight : t.toDark; $("theme").setAttribute("aria-label", $("theme").title);
+  $("q").placeholder = c.q; $("nmlbl").textContent = c.nm; $("txlbl").textContent = c.tx; $("implbl").innerHTML = t.imp(c.imp);
+  if (!$("empty").dataset.err) $("empty").textContent = c.empty;
+  renderList();
+}
+function setCat(c) {
+  cat = c; sel = null;
+  try { localStorage.setItem("mrtools.cat", c); } catch (e) {}
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.cat === c));
+  delete $("empty").dataset.err;
+  show("empty"); applyText();
+}
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b && b.dataset.cat !== cat) setCat(b.dataset.cat); });
+const darkMq = matchMedia("(prefers-color-scheme: dark)");
+const isDark = () => (document.documentElement.dataset.theme || (darkMq.matches ? "dark" : "light")) === "dark";
+try { const th = localStorage.getItem("mrtools.theme"); if (th === "dark" || th === "light") document.documentElement.dataset.theme = th; } catch (e) {}
+darkMq.addEventListener("change", applyText);
+$("theme").onclick = () => {
+  const th = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = th;
+  try { localStorage.setItem("mrtools.theme", th); } catch (e) {}
+  applyText();
+};
+$("lang").onclick = () => {
+  lang = lang === "it" ? "en" : "it";
+  try { localStorage.setItem("mrtools.lang", lang); } catch (e) {}
+  applyText();
+};
+setCat(cat);
+
 $("add").onclick = async () => {
   const id = newId();
-  try { await setDoc(doc(db, "houses", id), { name: "New house", text: "" }); sel = id; setTimeout(() => { open(id); $("nm").select(); }, 300); }
-  catch (e) { alert("Could not add: " + e.message); }
+  try { await setDoc(doc(db, cat, id), { name: C().newName, text: "" }); sel = id; setTimeout(() => { open(id); $("nm").select(); }, 300); }
+  catch (e) { alert(T().addFail + e.message); }
 };
 $("save").onclick = async () => {
   if (!sel) return;
-  try { await setDoc(doc(db, "houses", sel), { name: $("nm").value.trim(), text: $("tx").value }); say("Saved ✓"); }
-  catch (e) { say("Could not save"); }
+  try { await setDoc(doc(db, cat, sel), { name: $("nm").value.trim(), text: $("tx").value }); say(T().saved); }
+  catch (e) { say(T().saveFail); }
 };
 $("del").onclick = async () => {
-  if (!sel || !confirm("Delete this house and its instructions?")) return;
-  try { await deleteDoc(doc(db, "houses", sel)); sel = null; show("empty"); } catch (e) { say("Could not delete"); }
+  if (!sel || !confirm(C().del)) return;
+  try { await deleteDoc(doc(db, cat, sel)); sel = null; show("empty"); } catch (e) { say(T().delFail); }
 };
 $("copy").onclick = () => {
   const t = $("tx").value.split("{guest}").join($("gn").value.trim());
-  const fb = () => { const a = document.createElement("textarea"); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); say("Copied ✓"); } catch (e) { say("Copy failed"); } a.remove(); };
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => say("Copied ✓"), fb); else fb();
+  const fb = () => { const a = document.createElement("textarea"); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); say(T().copied); } catch (e) { say(T().copyFail); } a.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => say(T().copied), fb); else fb();
 };
 $("imp").onclick = () => { show("imp"); $("impmsg").textContent = ""; };
 $("impx").onclick = () => show(sel ? "ed" : "empty");
 $("impgo").onclick = async () => {
   const blocks = $("imptx").value.split(/^\s*###\s*$/m).map(b => b.trim()).filter(Boolean);
-  if (!blocks.length) { $("impmsg").textContent = "Nothing to import"; return; }
+  if (!blocks.length) { $("impmsg").textContent = T().nothing; return; }
   try {
-    await Promise.all(blocks.map(b => { const l = b.split("\n"), name = l.shift().trim(); return setDoc(doc(db, "houses", newId()), { name, text: l.join("\n").trim() }); }));
+    await Promise.all(blocks.map(b => { const l = b.split("\n"), name = l.shift().trim(); return setDoc(doc(db, cat, newId()), { name, text: l.join("\n").trim() }); }));
     $("imptx").value = ""; show("empty");
-  } catch (e) { $("impmsg").textContent = "Import failed: " + e.message; }
+  } catch (e) { $("impmsg").textContent = T().impFail + e.message; }
 };
 
 // Login
 $("lf").addEventListener("submit", async e => {
   e.preventDefault(); $("lmsg").textContent = "";
   try { await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); }
-  catch (err) { $("lmsg").textContent = "Wrong email or password."; }
+  catch (err) { $("lmsg").textContent = T().wrongLogin; }
 });
 $("reset").onclick = async () => {
   const em = $("em").value.trim();
-  if (!em) { $("lmsg").textContent = "Type your email first."; return; }
-  try { await sendPasswordResetEmail(auth, em); $("lmsg").textContent = "If that account exists, a reset email was sent."; } catch (e) { $("lmsg").textContent = "Could not send reset email."; }
+  if (!em) { $("lmsg").textContent = T().typeEmail; return; }
+  try { await sendPasswordResetEmail(auth, em); $("lmsg").textContent = T().resetSent; } catch (e) { $("lmsg").textContent = T().resetFail; }
 };
 $("out").onclick = () => signOut(auth);
 
 onAuthStateChanged(auth, user => {
   if (user) {
     $("login").classList.add("hide"); $("app").classList.remove("hide");
-    unsub = onSnapshot(col, snap => {
-      items = snap.docs.map(d => ({ id: d.id, name: d.data().name || "", text: d.data().text || "" }));
-      items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+    unsubs = Object.keys(CATS).map(c => onSnapshot(collection(db, c), snap => {
+      const list = snap.docs.map(d => ({ id: d.id, name: d.data().name || "", text: d.data().text || "" }));
+      list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+      data[c] = list;
+      if (c !== cat) return;
       renderList();
       const busy = document.activeElement === $("tx") || document.activeElement === $("nm");
-      if (sel && !busy && !$("ed").classList.contains("hide")) { const x = items.find(i => i.id === sel); if (x) { $("nm").value = x.name; $("tx").value = x.text; } }
-    }, err => { $("empty").textContent = "Could not load data: " + err.message; });
+      if (sel && !busy && !$("ed").classList.contains("hide")) { const x = list.find(i => i.id === sel); if (x) { $("nm").value = x.name; $("tx").value = x.text; } }
+    }, err => { if (c === cat) { $("empty").dataset.err = 1; $("empty").textContent = T().loadFail + err.message; } }));
   } else {
-    if (unsub) { unsub(); unsub = null; }
-    items = []; sel = null; show("empty");
+    unsubs.forEach(u => u()); unsubs = [];
+    data = { houses: [], messages: [] }; sel = null; show("empty");
     $("app").classList.add("hide"); $("login").classList.remove("hide");
   }
 });
