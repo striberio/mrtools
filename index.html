@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check-in Instructions</title>
+<style>
+:root{--bg:#faf9f6;--card:#fff;--ink:#1f2328;--mute:#6b7280;--line:#e5e2db;--acc:#0f766e;--accInk:#fff;--sel:#e6f4f1;--bad:#b42318}
+@media (prefers-color-scheme:dark){:root{--bg:#161816;--card:#202320;--ink:#ececea;--mute:#9aa09a;--line:#333833;--acc:#2dd4bf;--accInk:#062b27;--sel:#1d3733;--bad:#f97066}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{display:grid;grid-template-columns:300px 1fr;gap:16px;max-width:1100px;margin:0 auto;padding:16px}
+@media(max-width:720px){.app{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+h1{font-size:17px;margin:0 0 10px}
+input,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+textarea{min-height:280px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.5}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px}
+button.p{background:var(--acc);color:var(--accInk);border-color:var(--acc);font-weight:600}
+button.d{color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.list{margin-top:10px;max-height:60vh;overflow-y:auto}
+.item{padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.item:hover{background:var(--sel)}
+.item.on{background:var(--sel);border-color:var(--acc)}
+.item small{display:block;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mute{color:var(--mute);font-size:13px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+.hide{display:none}
+#login{max-width:340px;margin:12vh auto;padding:0 16px}
+</style>
+</head>
+<body>
+
+<div id="login" class="hide">
+  <div class="panel">
+    <h1>Check-in Instructions</h1>
+    <form id="lf">
+      <label for="em">Email</label><input id="em" type="email" autocomplete="username" required>
+      <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required>
+      <div class="row"><button class="p" type="submit">Sign in</button><button type="button" id="reset">Forgot password</button></div>
+      <div class="mute" id="lmsg" style="margin-top:8px"></div>
+    </form>
+  </div>
+</div>
+
+<div class="app hide" id="app">
+  <div class="panel">
+    <h1>Check-in Instructions</h1>
+    <input id="q" placeholder="Search house, room, or text…" autocomplete="off">
+    <div class="row"><button class="p" id="add">+ New</button><button id="imp">Bulk import</button><button id="out">Sign out</button></div>
+    <div class="mute" id="count" style="margin-top:8px"></div>
+    <div class="list" id="list"></div>
+  </div>
+  <div class="panel">
+    <div class="mute" id="empty">Select a house on the left, or add a new one.</div>
+    <div id="ed" class="hide">
+      <label for="nm">House / room name</label>
+      <input id="nm">
+      <label for="tx">Instructions <span class="mute">(use {guest} where the guest's name goes)</span></label>
+      <textarea id="tx"></textarea>
+      <label for="gn">Guest name (fills {guest} when copying)</label>
+      <input id="gn" placeholder="e.g. Maria">
+      <div class="row">
+        <button class="p" id="copy">Copy message</button>
+        <button id="save">Save changes</button>
+        <button class="d" id="del">Delete</button>
+        <span class="mute" id="msg"></span>
+      </div>
+    </div>
+    <div id="imppane" class="hide">
+      <label for="imptx">Paste many at once. Separate houses with a line containing only <b>###</b>. The first line of each block is the name, the rest is the instructions.</label>
+      <textarea id="imptx"></textarea>
+      <div class="row"><button class="p" id="impgo">Import</button><button id="impx">Cancel</button><span class="mute" id="impmsg"></span></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// >>> PASTE YOUR FIREBASE CONFIG HERE (from Firebase console → Project settings → Your apps) <<<
+const firebaseConfig = {
+  apiKey: "AIzaSyBqEy0AZfn5jduktlfu1CxsTtQ7Jqr_zGM",
+  authDomain: "mrtools-50586.firebaseapp.com",
+  projectId: "mrtools-50586",
+  appId: "1:960620008673:web:0c4f8bb48645b8324e53a0"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const col = collection(db, "houses");
+
+const $ = i => document.getElementById(i);
+let items = [], sel = null, unsub = null;
+
+const esc = s => { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; };
+const newId = () => "h" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function say(t) { $("msg").textContent = t; if (t) setTimeout(() => { if ($("msg").textContent === t) $("msg").textContent = ""; }, 2500); }
+function show(w) { $("empty").classList.toggle("hide", w !== "empty"); $("ed").classList.toggle("hide", w !== "ed"); $("imppane").classList.toggle("hide", w !== "imp"); }
+
+function renderList() {
+  const q = $("q").value.trim().toLowerCase();
+  const f = items.filter(x => !q || (x.name + " " + x.text).toLowerCase().includes(q));
+  $("count").textContent = f.length + " of " + items.length + " shown";
+  $("list").innerHTML = f.map(x =>
+    `<div class="item${x.id === sel ? " on" : ""}" data-id="${x.id}">${esc(x.name || "(unnamed)")}<small>${esc((x.text || "").replace(/\s+/g, " ").slice(0, 70))}</small></div>`).join("");
+}
+function open(id) {
+  const x = items.find(i => i.id === id); if (!x) return;
+  sel = id; $("nm").value = x.name; $("tx").value = x.text; show("ed"); renderList();
+}
+
+$("list").addEventListener("click", e => { const n = e.target.closest(".item"); if (n) open(n.dataset.id); });
+$("q").addEventListener("input", renderList);
+
+$("add").onclick = async () => {
+  const id = newId();
+  try { await setDoc(doc(db, "houses", id), { name: "New house", text: "" }); sel = id; setTimeout(() => { open(id); $("nm").select(); }, 300); }
+  catch (e) { alert("Could not add: " + e.message); }
+};
+$("save").onclick = async () => {
+  if (!sel) return;
+  try { await setDoc(doc(db, "houses", sel), { name: $("nm").value.trim(), text: $("tx").value }); say("Saved ✓"); }
+  catch (e) { say("Could not save"); }
+};
+$("del").onclick = async () => {
+  if (!sel || !confirm("Delete this house and its instructions?")) return;
+  try { await deleteDoc(doc(db, "houses", sel)); sel = null; show("empty"); } catch (e) { say("Could not delete"); }
+};
+$("copy").onclick = () => {
+  const t = $("tx").value.split("{guest}").join($("gn").value.trim());
+  const fb = () => { const a = document.createElement("textarea"); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); say("Copied ✓"); } catch (e) { say("Copy failed"); } a.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => say("Copied ✓"), fb); else fb();
+};
+$("imp").onclick = () => { show("imp"); $("impmsg").textContent = ""; };
+$("impx").onclick = () => show(sel ? "ed" : "empty");
+$("impgo").onclick = async () => {
+  const blocks = $("imptx").value.split(/^\s*###\s*$/m).map(b => b.trim()).filter(Boolean);
+  if (!blocks.length) { $("impmsg").textContent = "Nothing to import"; return; }
+  try {
+    await Promise.all(blocks.map(b => { const l = b.split("\n"), name = l.shift().trim(); return setDoc(doc(db, "houses", newId()), { name, text: l.join("\n").trim() }); }));
+    $("imptx").value = ""; show("empty");
+  } catch (e) { $("impmsg").textContent = "Import failed: " + e.message; }
+};
+
+// Login
+$("lf").addEventListener("submit", async e => {
+  e.preventDefault(); $("lmsg").textContent = "";
+  try { await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); }
+  catch (err) { $("lmsg").textContent = "Wrong email or password."; }
+});
+$("reset").onclick = async () => {
+  const em = $("em").value.trim();
+  if (!em) { $("lmsg").textContent = "Type your email first."; return; }
+  try { await sendPasswordResetEmail(auth, em); $("lmsg").textContent = "If that account exists, a reset email was sent."; } catch (e) { $("lmsg").textContent = "Could not send reset email."; }
+};
+$("out").onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, user => {
+  if (user) {
+    $("login").classList.add("hide"); $("app").classList.remove("hide");
+    unsub = onSnapshot(col, snap => {
+      items = snap.docs.map(d => ({ id: d.id, name: d.data().name || "", text: d.data().text || "" }));
+      items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+      renderList();
+      const busy = document.activeElement === $("tx") || document.activeElement === $("nm");
+      if (sel && !busy && !$("ed").classList.contains("hide")) { const x = items.find(i => i.id === sel); if (x) { $("nm").value = x.name; $("tx").value = x.text; } }
+    }, err => { $("empty").textContent = "Could not load data: " + err.message; });
+  } else {
+    if (unsub) { unsub(); unsub = null; }
+    items = []; sel = null; show("empty");
+    $("app").classList.add("hide"); $("login").classList.remove("hide");
+  }
+});
+</script>
+</body>
+</html>
