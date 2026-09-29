@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<div class="top"><button id="theme" type="button"></button><button id="lang" type="button"></button></div>
+<div class="top"><a class="nav" href="houses.html" data-i18n="navHouses"></a><button id="theme" type="button"></button><button id="lang" type="button"></button></div>
 
 <div id="login" class="hide">
   <div class="panel">
@@ -56,25 +56,13 @@
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-// >>> PASTE YOUR FIREBASE CONFIG HERE (from Firebase console → Project settings → Your apps) <<<
-const firebaseConfig = {
-  apiKey: "AIzaSyBqEy0AZfn5jduktlfu1CxsTtQ7Jqr_zGM",
-  authDomain: "mrtools-50586.firebaseapp.com",
-  projectId: "mrtools-50586",
-  appId: "1:960620008673:web:0c4f8bb48645b8324e53a0"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+import { auth, db } from "./common.js";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const I18N = {
   it: {
-    other: "English", toDark: "Tema scuro", toLight: "Tema chiaro", email: "Email", password: "Password", signIn: "Accedi", forgot: "Password dimenticata",
+    other: "English", navHouses: "Case →", toDark: "Tema scuro", toLight: "Tema chiaro", email: "Email", password: "Password", signIn: "Accedi", forgot: "Password dimenticata",
     wrongLogin: "Email o password errati.", typeEmail: "Scrivi prima la tua email.",
     resetSent: "Se l'account esiste, è stata inviata un'email per reimpostare la password.", resetFail: "Impossibile inviare l'email di reimpostazione.",
     tabHouses: "Check-in", tabMessages: "Messaggi", new: "+ Nuovo", bulk: "Importa in blocco", signOut: "Esci",
@@ -88,7 +76,7 @@ const I18N = {
     messages: { q: "Cerca messaggi…", empty: "Seleziona un messaggio a sinistra o aggiungine uno nuovo.", nm: "Titolo del messaggio", tx: "Messaggio", imp: "il messaggio", newName: "Nuovo messaggio", del: "Eliminare questo messaggio?" }
   },
   en: {
-    other: "Italiano", toDark: "Dark mode", toLight: "Light mode", email: "Email", password: "Password", signIn: "Sign in", forgot: "Forgot password",
+    other: "Italiano", navHouses: "Houses →", toDark: "Dark mode", toLight: "Light mode", email: "Email", password: "Password", signIn: "Sign in", forgot: "Forgot password",
     wrongLogin: "Wrong email or password.", typeEmail: "Type your email first.",
     resetSent: "If that account exists, a reset email was sent.", resetFail: "Could not send reset email.",
     tabHouses: "Check-in", tabMessages: "Messages", new: "+ New", bulk: "Bulk import", signOut: "Sign out",

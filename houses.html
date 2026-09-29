@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MRTools – Case</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="top"><a class="nav" href="index.html" data-i18n="navBack"></a><button id="theme" type="button"></button><button id="lang" type="button"></button></div>
+
+<div class="app hide" id="app">
+  <div class="panel">
+    <h1 data-i18n="title"></h1>
+    <input id="q" autocomplete="off" data-i18n-ph="search">
+    <div class="chips" id="chips"></div>
+    <div class="row"><button class="p" id="add" data-i18n="new"></button><button id="out" data-i18n="signOut"></button></div>
+    <div class="mute" id="count"></div>
+    <div class="list" id="list"></div>
+  </div>
+  <div class="panel">
+    <div class="mute" id="empty" data-i18n="empty"></div>
+    <div id="ed" class="hide">
+      <label for="nm" data-i18n="name"></label>
+      <input id="nm">
+      <label for="ct"><span data-i18n="category"></span> <span class="mute" data-i18n="categoryHint"></span></label>
+      <input id="ct" list="cats" autocomplete="off">
+      <datalist id="cats"></datalist>
+      <label for="ad" data-i18n="address"></label>
+      <input id="ad">
+      <label for="nt" data-i18n="notes"></label>
+      <textarea id="nt" class="notes"></textarea>
+      <div class="row">
+        <button class="p" id="save" data-i18n="save"></button>
+        <button class="d" id="del" data-i18n="delete"></button>
+        <span class="mute" id="msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { auth, db } from "./common.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const COL = "properties";
+const I18N = {
+  it: {
+    other: "English", toDark: "Tema scuro", toLight: "Tema chiaro", navBack: "← Check-in",
+    title: "Case", search: "Cerca nome, indirizzo o note…", all: "Tutte", none: "Senza categoria",
+    new: "+ Nuova casa", signOut: "Esci", shown: (a, b) => a + " di " + b + " visualizzate",
+    empty: "Seleziona una casa a sinistra o aggiungine una nuova.",
+    name: "Nome della casa", category: "Categoria", categoryHint: "(scegline una o scrivine una nuova)", address: "Indirizzo", notes: "Note",
+    save: "Salva modifiche", delete: "Elimina", newName: "Nuova casa", del: "Eliminare questa casa?",
+    saved: "Salvato ✓", saveFail: "Impossibile salvare", delFail: "Impossibile eliminare",
+    addFail: "Impossibile aggiungere: ", loadFail: "Impossibile caricare i dati: "
+  },
+  en: {
+    other: "Italiano", toDark: "Dark mode", toLight: "Light mode", navBack: "← Check-in",
+    title: "Houses", search: "Search name, address, or notes…", all: "All", none: "No category",
+    new: "+ New house", signOut: "Sign out", shown: (a, b) => a + " of " + b + " shown",
+    empty: "Select a house on the left, or add a new one.",
+    name: "House name", category: "Category", categoryHint: "(pick one or type a new one)", address: "Address", notes: "Notes",
+    save: "Save changes", delete: "Delete", newName: "New house", del: "Delete this house?",
+    saved: "Saved ✓", saveFail: "Could not save", delFail: "Could not delete",
+    addFail: "Could not add: ", loadFail: "Could not load data: "
+  }
+};
+
+const $ = i => document.getElementById(i);
+let lang = "it", items = [], sel = null, filter = null, unsub = null;
+try { if (I18N[localStorage.getItem("mrtools.lang")]) lang = localStorage.getItem("mrtools.lang"); } catch (e) {}
+try { filter = localStorage.getItem("mrtools.houseFilter"); } catch (e) {}
+const T = () => I18N[lang];
+
+const esc = s => { const d = document.createElement("div"); d.textContent = s; return d.innerHTML.replace(/"/g, "&quot;"); };
+const newId = () => "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+function say(t) { $("msg").textContent = t; if (t) setTimeout(() => { if ($("msg").textContent === t) $("msg").textContent = ""; }, 2500); }
+function show(w) { $("empty").classList.toggle("hide", w !== "empty"); $("ed").classList.toggle("hide", w !== "ed"); }
+
+// Categories in alphabetical order; houses without one come last as "".
+function categories() {
+  const c = [...new Set(items.map(x => x.category))].filter(Boolean).sort(byName);
+  if (items.some(x => !x.category)) c.push("");
+  return c;
+}
+
+// The saved filter only applies if that category still exists.
+const activeFilter = () => filter !== null && categories().includes(filter) ? filter : null;
+
+function setFilter(f) {
+  filter = f;
+  try { if (f === null) localStorage.removeItem("mrtools.houseFilter"); else localStorage.setItem("mrtools.houseFilter", f); } catch (e) {}
+  render();
+}
+
+function render() {
+  const t = T(), cats = categories(), af = activeFilter();
+  const count = c => items.filter(x => x.category === c).length;
+  $("chips").innerHTML =
+    `<button class="chip${af === null ? " on" : ""}" data-f="*">${esc(t.all)} <span>${items.length}</span></button>` +
+    cats.map(c => `<button class="chip${af === c ? " on" : ""}" data-f="${esc(c)}">${esc(c || t.none)} <span>${count(c)}</span></button>`).join("");
+  $("cats").innerHTML = cats.filter(Boolean).map(c => `<option value="${esc(c)}">`).join("");
+
+  const q = $("q").value.trim().toLowerCase();
+  const f = items.filter(x => (af === null || x.category === af) && (!q || [x.name, x.category, x.address, x.notes].join(" ").toLowerCase().includes(q)));
+  $("count").textContent = t.shown(f.length, items.length);
+  $("list").innerHTML = cats.map(c => {
+    const g = f.filter(x => x.category === c);
+    if (!g.length) return "";
+    return `<div class="group">${esc(c || t.none)}</div>` + g.map(x =>
+      `<div class="item${x.id === sel ? " on" : ""}" data-id="${x.id}">${esc(x.name || "(—)")}<small>${esc(x.address || (x.notes || "").replace(/\s+/g, " ").slice(0, 70))}</small></div>`).join("");
+  }).join("");
+}
+
+function fill(x) { $("nm").value = x.name; $("ct").value = x.category; $("ad").value = x.address; $("nt").value = x.notes; }
+function open(id) {
+  const x = items.find(i => i.id === id); if (!x) return;
+  sel = id; fill(x); show("ed"); render();
+}
+
+function applyText() {
+  const t = T();
+  document.documentElement.lang = lang;
+  document.title = "MRTools – " + t.title;
+  document.querySelectorAll("[data-i18n]").forEach(n => { n.textContent = t[n.dataset.i18n]; });
+  document.querySelectorAll("[data-i18n-ph]").forEach(n => { n.placeholder = t[n.dataset.i18nPh]; });
+  $("lang").textContent = t.other;
+  const dark = isDark(); $("theme").textContent = dark ? "☀" : "☾"; $("theme").title = dark ? t.toLight : t.toDark; $("theme").setAttribute("aria-label", $("theme").title);
+  render();
+}
+
+const darkMq = matchMedia("(prefers-color-scheme: dark)");
+const isDark = () => (document.documentElement.dataset.theme || (darkMq.matches ? "dark" : "light")) === "dark";
+try { const th = localStorage.getItem("mrtools.theme"); if (th === "dark" || th === "light") document.documentElement.dataset.theme = th; } catch (e) {}
+darkMq.addEventListener("change", applyText);
+$("theme").onclick = () => {
+  const th = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = th;
+  try { localStorage.setItem("mrtools.theme", th); } catch (e) {}
+  applyText();
+};
+$("lang").onclick = () => {
+  lang = lang === "it" ? "en" : "it";
+  try { localStorage.setItem("mrtools.lang", lang); } catch (e) {}
+  applyText();
+};
+
+$("list").addEventListener("click", e => { const n = e.target.closest(".item"); if (n) open(n.dataset.id); });
+$("chips").addEventListener("click", e => { const b = e.target.closest(".chip"); if (b) setFilter(b.dataset.f === "*" ? null : b.dataset.f); });
+$("q").addEventListener("input", render);
+
+$("add").onclick = async () => {
+  const id = newId();
+  try {
+    await setDoc(doc(db, COL, id), { name: T().newName, category: activeFilter() || "", address: "", notes: "" });
+    sel = id; setTimeout(() => { open(id); $("nm").select(); }, 300);
+  } catch (e) { alert(T().addFail + e.message); }
+};
+$("save").onclick = async () => {
+  if (!sel) return;
+  try {
+    await setDoc(doc(db, COL, sel), { name: $("nm").value.trim(), category: $("ct").value.trim(), address: $("ad").value.trim(), notes: $("nt").value });
+    say(T().saved);
+  } catch (e) { say(T().saveFail); }
+};
+$("del").onclick = async () => {
+  if (!sel || !confirm(T().del)) return;
+  try { await deleteDoc(doc(db, COL, sel)); sel = null; show("empty"); } catch (e) { say(T().delFail); }
+};
+$("out").onclick = () => signOut(auth);
+
+applyText();
+
+// Sign-in happens on the main page; come back here afterwards.
+onAuthStateChanged(auth, user => {
+  if (!user) { if (unsub) unsub(); location.replace("index.html"); return; }
+  $("app").classList.remove("hide");
+  unsub = onSnapshot(collection(db, COL), snap => {
+    items = snap.docs.map(d => { const v = d.data(); return { id: d.id, name: v.name || "", category: v.category || "", address: v.address || "", notes: v.notes || "" }; });
+    items.sort((a, b) => byName(a.name, b.name));
+    render();
+    const busy = ["nm", "ct", "ad", "nt"].includes(document.activeElement && document.activeElement.id);
+    if (sel && !busy && !$("ed").classList.contains("hide")) { const x = items.find(i => i.id === sel); if (x) fill(x); }
+  }, err => { $("empty").textContent = T().loadFail + err.message; });
+});
+</script>
+</body>
+</html>
