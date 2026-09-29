@@ -40,3 +40,28 @@ export function renderMenu(lang) {
   document.getElementById("menu").innerHTML = PAGES.map(p =>
     `<a href="${p.href}"${p.href === here ? ' class="on" aria-current="page"' : ""}>${p[lang] || p.en}</a>`).join("");
 }
+
+// Search: "cad 15" finds "Cadorna 15". Each typed word must be the start of some
+// word in the entry (or anywhere inside one, if 3+ characters), in any order;
+// case and accents are ignored.
+const words = s => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/\p{L}+|\p{N}+/gu) || [];
+
+// Returns null for an empty search, otherwise match(main, ...other) giving
+// 2 if every word is found in `main` (e.g. the name), 1 if found across all fields, 0 if not.
+export function makeSearch(query) {
+  const q = words(query);
+  if (!q.length) return null;
+  const hit = ws => q.every(t => ws.some(w => t.length >= 3 ? w.includes(t) : w.startsWith(t)));
+  return (main, ...other) => {
+    const m = words(main);
+    if (hit(m)) return 2;
+    return hit(m.concat(...other.map(words))) ? 1 : 0;
+  };
+}
+
+// Keeps the entries that match, best matches first (otherwise in their original order).
+export const searchList = (list, query, fields) => {
+  const match = makeSearch(query);
+  if (!match) return list;
+  return list.map(x => ({ x, s: match(...fields(x)) })).filter(r => r.s).sort((a, b) => b.s - a.s).map(r => r.x);
+};

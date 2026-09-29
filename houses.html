@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools – Case</title>
 <!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -43,7 +43,7 @@
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu } from "./common.js?v=2";
+import { auth, db, formatWhen, initMenu, renderMenu, searchList } from "./common.js?v=3";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -107,8 +107,7 @@ function render() {
     cats.map(c => `<button class="chip${af === c ? " on" : ""}" data-f="${esc(c)}">${esc(c || t.none)} <span>${count(c)}</span></button>`).join("");
   $("cats").innerHTML = cats.filter(Boolean).map(c => `<option value="${esc(c)}">`).join("");
 
-  const q = $("q").value.trim().toLowerCase();
-  const f = items.filter(x => (af === null || x.category === af) && (!q || [x.name, x.category, x.address, x.notes].join(" ").toLowerCase().includes(q)));
+  const f = searchList(items.filter(x => af === null || x.category === af), $("q").value, x => [x.name + " " + x.address, x.category, x.notes]);
   $("count").textContent = t.shown(f.length, items.length);
   $("list").innerHTML = cats.map(c => {
     const g = f.filter(x => x.category === c);

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools</title>
 <!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -58,7 +58,7 @@
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu } from "./common.js?v=2";
+import { auth, db, formatWhen, initMenu, renderMenu, searchList } from "./common.js?v=3";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -109,8 +109,7 @@ function say(t) { $("msg").textContent = t; if (t) setTimeout(() => { if ($("msg
 function show(w) { $("empty").classList.toggle("hide", w !== "empty"); $("ed").classList.toggle("hide", w !== "ed"); $("imppane").classList.toggle("hide", w !== "imp"); }
 
 function renderList() {
-  const q = $("q").value.trim().toLowerCase();
-  const f = items().filter(x => !q || (x.name + " " + x.text).toLowerCase().includes(q));
+  const f = searchList(items(), $("q").value, x => [x.name, x.text]);
   $("count").textContent = T().shown(f.length, items().length);
   $("list").innerHTML = f.map(x =>
     `<div class="item${x.id === sel ? " on" : ""}" data-id="${x.id}">${esc(x.name || "(unnamed)")}<small>${esc((x.text || "").replace(/\s+/g, " ").slice(0, 70))}</small></div>`).join("");
