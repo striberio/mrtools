@@ -8,14 +8,14 @@
 </head>
 <body>
 
-<div class="top"><a class="nav" href="index.html" data-i18n="navBack"></a><button id="theme" type="button"></button><button id="lang" type="button"></button></div>
+<div class="top"><div class="menuwrap hide" id="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">☰ Menu</button><nav class="menu hide" id="menu"></nav></div><button id="theme" type="button"></button><button id="lang" type="button"></button><button id="out" type="button" class="hide" data-i18n="signOut"></button></div>
 
 <div class="app hide" id="app">
   <div class="panel">
     <h1 data-i18n="title"></h1>
     <input id="q" autocomplete="off" data-i18n-ph="search">
     <div class="chips" id="chips"></div>
-    <div class="row"><button class="p" id="add" data-i18n="new"></button><button id="out" data-i18n="signOut"></button></div>
+    <div class="row"><button class="p" id="add" data-i18n="new"></button></div>
     <div class="mute" id="count"></div>
     <div class="list" id="list"></div>
   </div>
@@ -30,6 +30,7 @@
       <label for="ad" data-i18n="address"></label>
       <input id="ad">
       <label for="nt" data-i18n="notes"></label>
+      <div class="edited" id="edited"></div>
       <textarea id="nt" class="notes"></textarea>
       <div class="row">
         <button class="p" id="save" data-i18n="save"></button>
@@ -41,14 +42,14 @@
 </div>
 
 <script type="module">
-import { auth, db } from "./common.js";
+import { auth, db, formatWhen, initMenu, renderMenu } from "./common.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const COL = "properties";
 const I18N = {
   it: {
-    other: "English", toDark: "Tema scuro", toLight: "Tema chiaro", navBack: "← Check-in",
+    other: "English", edited: w => "Ultima modifica: " + w, notEdited: "Ultima modifica: non registrata", toDark: "Tema scuro", toLight: "Tema chiaro",
     title: "Case", search: "Cerca nome, indirizzo o note…", all: "Tutte", none: "Senza categoria",
     new: "+ Nuova casa", signOut: "Esci", shown: (a, b) => a + " di " + b + " visualizzate",
     empty: "Seleziona una casa a sinistra o aggiungine una nuova.",
@@ -58,7 +59,7 @@ const I18N = {
     addFail: "Impossibile aggiungere: ", loadFail: "Impossibile caricare i dati: "
   },
   en: {
-    other: "Italiano", toDark: "Dark mode", toLight: "Light mode", navBack: "← Check-in",
+    other: "Italiano", edited: w => "Last edited: " + w, notEdited: "Last edited: not recorded", toDark: "Dark mode", toLight: "Light mode",
     title: "Houses", search: "Search name, address, or notes…", all: "All", none: "No category",
     new: "+ New house", signOut: "Sign out", shown: (a, b) => a + " of " + b + " shown",
     empty: "Select a house on the left, or add a new one.",
@@ -117,9 +118,13 @@ function render() {
 }
 
 function fill(x) { $("nm").value = x.name; $("ct").value = x.category; $("ad").value = x.address; $("nt").value = x.notes; }
+function showEdited() {
+  const x = items.find(i => i.id === sel);
+  $("edited").textContent = x && x.updated ? T().edited(formatWhen(x.updated, lang)) : T().notEdited;
+}
 function open(id) {
   const x = items.find(i => i.id === id); if (!x) return;
-  sel = id; fill(x); show("ed"); render();
+  sel = id; fill(x); showEdited(); show("ed"); render();
 }
 
 function applyText() {
@@ -129,8 +134,9 @@ function applyText() {
   document.querySelectorAll("[data-i18n]").forEach(n => { n.textContent = t[n.dataset.i18n]; });
   document.querySelectorAll("[data-i18n-ph]").forEach(n => { n.placeholder = t[n.dataset.i18nPh]; });
   $("lang").textContent = t.other;
+  renderMenu(lang);
   const dark = isDark(); $("theme").textContent = dark ? "☀" : "☾"; $("theme").title = dark ? t.toLight : t.toDark; $("theme").setAttribute("aria-label", $("theme").title);
-  render();
+  showEdited(); render();
 }
 
 const darkMq = matchMedia("(prefers-color-scheme: dark)");
@@ -156,14 +162,14 @@ $("q").addEventListener("input", render);
 $("add").onclick = async () => {
   const id = newId();
   try {
-    await setDoc(doc(db, COL, id), { name: T().newName, category: activeFilter() || "", address: "", notes: "" });
+    await setDoc(doc(db, COL, id), { name: T().newName, category: activeFilter() || "", address: "", notes: "", updatedAt: serverTimestamp() });
     sel = id; setTimeout(() => { open(id); $("nm").select(); }, 300);
   } catch (e) { alert(T().addFail + e.message); }
 };
 $("save").onclick = async () => {
   if (!sel) return;
   try {
-    await setDoc(doc(db, COL, sel), { name: $("nm").value.trim(), category: $("ct").value.trim(), address: $("ad").value.trim(), notes: $("nt").value });
+    await setDoc(doc(db, COL, sel), { name: $("nm").value.trim(), category: $("ct").value.trim(), address: $("ad").value.trim(), notes: $("nt").value, updatedAt: serverTimestamp() });
     say(T().saved);
   } catch (e) { say(T().saveFail); }
 };
@@ -172,19 +178,21 @@ $("del").onclick = async () => {
   try { await deleteDoc(doc(db, COL, sel)); sel = null; show("empty"); } catch (e) { say(T().delFail); }
 };
 $("out").onclick = () => signOut(auth);
+initMenu();
 
 applyText();
 
 // Sign-in happens on the main page; come back here afterwards.
 onAuthStateChanged(auth, user => {
   if (!user) { if (unsub) unsub(); location.replace("index.html"); return; }
-  $("app").classList.remove("hide");
+  $("app").classList.remove("hide"); $("out").classList.remove("hide"); $("menuwrap").classList.remove("hide");
   unsub = onSnapshot(collection(db, COL), snap => {
-    items = snap.docs.map(d => { const v = d.data(); return { id: d.id, name: v.name || "", category: v.category || "", address: v.address || "", notes: v.notes || "" }; });
+    items = snap.docs.map(d => { const v = d.data({ serverTimestamps: "estimate" }); return { id: d.id, name: v.name || "", category: v.category || "", address: v.address || "", notes: v.notes || "", updated: v.updatedAt ? v.updatedAt.toDate() : null }; });
     items.sort((a, b) => byName(a.name, b.name));
     render();
     const busy = ["nm", "ct", "ad", "nt"].includes(document.activeElement && document.activeElement.id);
     if (sel && !busy && !$("ed").classList.contains("hide")) { const x = items.find(i => i.id === sel); if (x) fill(x); }
+    if (sel) showEdited();
   }, err => { $("empty").textContent = T().loadFail + err.message; });
 });
 </script>

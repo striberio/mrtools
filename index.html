@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<div class="top"><a class="nav" href="houses.html" data-i18n="navHouses"></a><button id="theme" type="button"></button><button id="lang" type="button"></button></div>
+<div class="top"><div class="menuwrap hide" id="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">☰ Menu</button><nav class="menu hide" id="menu"></nav></div><button id="theme" type="button"></button><button id="lang" type="button"></button><button id="out" type="button" class="hide" data-i18n="signOut"></button></div>
 
 <div id="login" class="hide">
   <div class="panel">
@@ -27,7 +27,7 @@
     <h1>MRTools</h1>
     <div class="tabs" id="tabs"><button data-cat="houses" class="on" data-i18n="tabHouses"></button><button data-cat="messages" data-i18n="tabMessages"></button></div>
     <input id="q" autocomplete="off">
-    <div class="row"><button class="p" id="add" data-i18n="new"></button><button id="imp" data-i18n="bulk"></button><button id="out" data-i18n="signOut"></button></div>
+    <div class="row"><button class="p" id="add" data-i18n="new"></button><button id="imp" data-i18n="bulk"></button></div>
     <div class="mute" id="count"></div>
     <div class="list" id="list"></div>
   </div>
@@ -36,7 +36,8 @@
     <div id="ed" class="hide">
       <label for="nm" id="nmlbl"></label>
       <input id="nm">
-      <label for="tx"><span id="txlbl"></span> <span class="mute" data-i18n="guestHint"></span></label>
+      <label for="tx"><span id="txlbl"></span></label>
+      <div class="edited" id="edited"></div>
       <textarea id="tx"></textarea>
       <label for="gn" data-i18n="guestName"></label>
       <input id="gn" data-i18n-ph="guestPh">
@@ -56,18 +57,18 @@
 </div>
 
 <script type="module">
-import { auth, db } from "./common.js";
+import { auth, db, formatWhen, initMenu, renderMenu } from "./common.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const I18N = {
   it: {
-    other: "English", navHouses: "Case →", toDark: "Tema scuro", toLight: "Tema chiaro", email: "Email", password: "Password", signIn: "Accedi", forgot: "Password dimenticata",
+    other: "English", edited: w => "Ultima modifica: " + w, notEdited: "Ultima modifica: non registrata", toDark: "Tema scuro", toLight: "Tema chiaro", email: "Email", password: "Password", signIn: "Accedi", forgot: "Password dimenticata",
     wrongLogin: "Email o password errati.", typeEmail: "Scrivi prima la tua email.",
     resetSent: "Se l'account esiste, è stata inviata un'email per reimpostare la password.", resetFail: "Impossibile inviare l'email di reimpostazione.",
     tabHouses: "Check-in", tabMessages: "Messaggi", new: "+ Nuovo", bulk: "Importa in blocco", signOut: "Esci",
     shown: (a, b) => a + " di " + b + " visualizzati",
-    guestHint: "(usa {guest} dove va il nome dell'ospite)", guestName: "Nome dell'ospite (sostituisce {guest} quando copi)", guestPh: "es. Maria",
+    guestName: "Nome dell'ospite (sostituisce {guest} quando copi)", guestPh: "es. Maria",
     copy: "Copia messaggio", save: "Salva modifiche", delete: "Elimina", import: "Importa", cancel: "Annulla",
     saved: "Salvato ✓", saveFail: "Impossibile salvare", delFail: "Impossibile eliminare", copied: "Copiato ✓", copyFail: "Copia non riuscita",
     addFail: "Impossibile aggiungere: ", nothing: "Niente da importare", impFail: "Importazione non riuscita: ", loadFail: "Impossibile caricare i dati: ",
@@ -76,12 +77,12 @@ const I18N = {
     messages: { q: "Cerca messaggi…", empty: "Seleziona un messaggio a sinistra o aggiungine uno nuovo.", nm: "Titolo del messaggio", tx: "Messaggio", imp: "il messaggio", newName: "Nuovo messaggio", del: "Eliminare questo messaggio?" }
   },
   en: {
-    other: "Italiano", navHouses: "Houses →", toDark: "Dark mode", toLight: "Light mode", email: "Email", password: "Password", signIn: "Sign in", forgot: "Forgot password",
+    other: "Italiano", edited: w => "Last edited: " + w, notEdited: "Last edited: not recorded", toDark: "Dark mode", toLight: "Light mode", email: "Email", password: "Password", signIn: "Sign in", forgot: "Forgot password",
     wrongLogin: "Wrong email or password.", typeEmail: "Type your email first.",
     resetSent: "If that account exists, a reset email was sent.", resetFail: "Could not send reset email.",
     tabHouses: "Check-in", tabMessages: "Messages", new: "+ New", bulk: "Bulk import", signOut: "Sign out",
     shown: (a, b) => a + " of " + b + " shown",
-    guestHint: "(use {guest} where the guest's name goes)", guestName: "Guest name (fills {guest} when copying)", guestPh: "e.g. Maria",
+    guestName: "Guest name (fills {guest} when copying)", guestPh: "e.g. Maria",
     copy: "Copy message", save: "Save changes", delete: "Delete", import: "Import", cancel: "Cancel",
     saved: "Saved ✓", saveFail: "Could not save", delFail: "Could not delete", copied: "Copied ✓", copyFail: "Copy failed",
     addFail: "Could not add: ", nothing: "Nothing to import", impFail: "Import failed: ", loadFail: "Could not load data: ",
@@ -113,9 +114,13 @@ function renderList() {
   $("list").innerHTML = f.map(x =>
     `<div class="item${x.id === sel ? " on" : ""}" data-id="${x.id}">${esc(x.name || "(unnamed)")}<small>${esc((x.text || "").replace(/\s+/g, " ").slice(0, 70))}</small></div>`).join("");
 }
+function showEdited() {
+  const x = items().find(i => i.id === sel);
+  $("edited").textContent = x && x.updated ? T().edited(formatWhen(x.updated, lang)) : T().notEdited;
+}
 function open(id) {
   const x = items().find(i => i.id === id); if (!x) return;
-  sel = id; $("nm").value = x.name; $("tx").value = x.text; show("ed"); renderList();
+  sel = id; $("nm").value = x.name; $("tx").value = x.text; showEdited(); show("ed"); renderList();
 }
 
 $("list").addEventListener("click", e => { const n = e.target.closest(".item"); if (n) open(n.dataset.id); });
@@ -127,10 +132,11 @@ function applyText() {
   document.querySelectorAll("[data-i18n]").forEach(n => { n.textContent = t[n.dataset.i18n]; });
   document.querySelectorAll("[data-i18n-ph]").forEach(n => { n.placeholder = t[n.dataset.i18nPh]; });
   $("lang").textContent = t.other;
+  renderMenu(lang);
   const dark = isDark(); $("theme").textContent = dark ? "☀" : "☾"; $("theme").title = dark ? t.toLight : t.toDark; $("theme").setAttribute("aria-label", $("theme").title);
   $("q").placeholder = c.q; $("nmlbl").textContent = c.nm; $("txlbl").textContent = c.tx; $("implbl").innerHTML = t.imp(c.imp);
   if (!$("empty").dataset.err) $("empty").textContent = c.empty;
-  renderList();
+  showEdited(); renderList();
 }
 function setCat(c) {
   cat = c; sel = null;
@@ -159,12 +165,12 @@ setCat(cat);
 
 $("add").onclick = async () => {
   const id = newId();
-  try { await setDoc(doc(db, cat, id), { name: C().newName, text: "" }); sel = id; setTimeout(() => { open(id); $("nm").select(); }, 300); }
+  try { await setDoc(doc(db, cat, id), { name: C().newName, text: "", updatedAt: serverTimestamp() }); sel = id; setTimeout(() => { open(id); $("nm").select(); }, 300); }
   catch (e) { alert(T().addFail + e.message); }
 };
 $("save").onclick = async () => {
   if (!sel) return;
-  try { await setDoc(doc(db, cat, sel), { name: $("nm").value.trim(), text: $("tx").value }); say(T().saved); }
+  try { await setDoc(doc(db, cat, sel), { name: $("nm").value.trim(), text: $("tx").value, updatedAt: serverTimestamp() }); say(T().saved); }
   catch (e) { say(T().saveFail); }
 };
 $("del").onclick = async () => {
@@ -182,7 +188,7 @@ $("impgo").onclick = async () => {
   const blocks = $("imptx").value.split(/^\s*###\s*$/m).map(b => b.trim()).filter(Boolean);
   if (!blocks.length) { $("impmsg").textContent = T().nothing; return; }
   try {
-    await Promise.all(blocks.map(b => { const l = b.split("\n"), name = l.shift().trim(); return setDoc(doc(db, cat, newId()), { name, text: l.join("\n").trim() }); }));
+    await Promise.all(blocks.map(b => { const l = b.split("\n"), name = l.shift().trim(); return setDoc(doc(db, cat, newId()), { name, text: l.join("\n").trim(), updatedAt: serverTimestamp() }); }));
     $("imptx").value = ""; show("empty");
   } catch (e) { $("impmsg").textContent = T().impFail + e.message; }
 };
@@ -199,23 +205,28 @@ $("reset").onclick = async () => {
   try { await sendPasswordResetEmail(auth, em); $("lmsg").textContent = T().resetSent; } catch (e) { $("lmsg").textContent = T().resetFail; }
 };
 $("out").onclick = () => signOut(auth);
+initMenu();
 
 onAuthStateChanged(auth, user => {
   if (user) {
-    $("login").classList.add("hide"); $("app").classList.remove("hide");
+    $("login").classList.add("hide"); $("app").classList.remove("hide"); $("out").classList.remove("hide"); $("menuwrap").classList.remove("hide");
     unsubs = Object.keys(CATS).map(c => onSnapshot(collection(db, c), snap => {
-      const list = snap.docs.map(d => ({ id: d.id, name: d.data().name || "", text: d.data().text || "" }));
+      const list = snap.docs.map(d => {
+        const v = d.data({ serverTimestamps: "estimate" });
+        return { id: d.id, name: v.name || "", text: v.text || "", updated: v.updatedAt ? v.updatedAt.toDate() : null };
+      });
       list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
       data[c] = list;
       if (c !== cat) return;
       renderList();
       const busy = document.activeElement === $("tx") || document.activeElement === $("nm");
       if (sel && !busy && !$("ed").classList.contains("hide")) { const x = list.find(i => i.id === sel); if (x) { $("nm").value = x.name; $("tx").value = x.text; } }
+      if (sel) showEdited();
     }, err => { if (c === cat) { $("empty").dataset.err = 1; $("empty").textContent = T().loadFail + err.message; } }));
   } else {
     unsubs.forEach(u => u()); unsubs = [];
     data = { houses: [], messages: [] }; sel = null; show("empty");
-    $("app").classList.add("hide"); $("login").classList.remove("hide");
+    $("app").classList.add("hide"); $("out").classList.add("hide"); $("menuwrap").classList.add("hide"); $("login").classList.remove("hide");
   }
 });
 </script>
