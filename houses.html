@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools – Case</title>
-<link rel="stylesheet" href="style.css">
+<!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -42,7 +43,7 @@
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu } from "./common.js";
+import { auth, db, formatWhen, initMenu, renderMenu } from "./common.js?v=2";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
