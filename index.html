@@ -40,6 +40,7 @@
       <label for="tx" id="txlbl"></label>
       <div class="edited" id="edited"></div>
       <div class="ltabs" id="ltabs" role="tablist"></div>
+      <div class="mute nolang hide" id="nolang">Nessuna lingua ancora: aggiungine una con +.</div>
       <textarea id="tx"></textarea>
       <label for="ex">Note extra</label>
       <textarea id="ex" class="notes"></textarea>
@@ -65,7 +66,7 @@ import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Language of entries saved before language tabs existed, and of new entries.
+// Language of entries saved before language tabs existed, and of bulk-imported text.
 const FIRST_LANG = "English";
 
 const S = {
@@ -76,6 +77,7 @@ const S = {
   saved: "Salvato ✓", saveFail: "Impossibile salvare", delFail: "Impossibile eliminare", copied: "Copiato ✓", copyFail: "Copia non riuscita",
   addFail: "Impossibile aggiungere: ", nothing: "Niente da importare", impFail: "Importazione non riuscita: ", loadFail: "Impossibile caricare i dati: ",
   imp: t => `Incolla più voci insieme. Separa le voci con una riga che contiene solo <b>###</b>. La prima riga di ogni blocco è il nome, il resto è ${t} (in ${FIRST_LANG}).`,
+  renameHint: "Doppio clic per rinominare", renameLabel: "Nome della lingua", langExists: "Questa lingua c'è già in questa voce.",
   addLang: "Aggiungi lingua", newLang: "Nome della nuova lingua (es. Italiano):", removeLang: "Elimina questa lingua",
   confirmRemoveLang: l => `Eliminare la versione "${l}" da questa voce? Diventa definitivo quando salvi.`,
   unsaved: "Ci sono modifiche non salvate in questa voce. Vuoi scartarle?",
@@ -103,12 +105,13 @@ function say(t) { $("msg").textContent = t; if (t) setTimeout(() => { if ($("msg
 function show(w) { $("empty").classList.toggle("hide", w !== "empty"); $("ed").classList.toggle("hide", w !== "ed"); $("imppane").classList.toggle("hide", w !== "imp"); }
 const okToLeave = () => !dirty || confirm(S.unsaved);
 
-// Entries saved before language tabs have a single `text`: show it as the English version.
+// Entries saved before language tabs have a single `text`: show it as the English
+// version, or no tabs if it was empty. Saved tabs are kept even while their text is empty.
 function toEntry(d) {
   const v = d.data({ serverTimestamps: "estimate" });
-  const texts = Array.isArray(v.texts) && v.texts.length
+  const texts = Array.isArray(v.texts)
     ? v.texts.map(t => ({ lang: String(t.lang || FIRST_LANG), text: String(t.text || "") }))
-    : [{ lang: FIRST_LANG, text: v.text || "" }];
+    : (v.text || "").trim() ? [{ lang: FIRST_LANG, text: v.text }] : [];
   return { id: d.id, name: v.name || "", texts, extra: v.extra || "", updated: v.updatedAt ? v.updatedAt.toDate() : null };
 }
 
@@ -116,32 +119,39 @@ function renderList() {
   const f = searchList(items(), $("q").value, x => [x.name, x.texts.map(t => t.text).join(" "), x.extra]);
   $("count").textContent = S.shown(f.length, items().length);
   $("list").innerHTML = f.map(x =>
-    `<div class="item${x.id === sel ? " on" : ""}" data-id="${x.id}">${esc(x.name || "(senza nome)")}<small>${esc(x.texts[0].text.replace(/\s+/g, " ").slice(0, 70))}</small></div>`).join("");
+    `<div class="item${x.id === sel ? " on" : ""}" data-id="${x.id}">${esc(x.name || "(senza nome)")}<small>${esc((x.texts.length ? x.texts[0].text : "").replace(/\s+/g, " ").slice(0, 70))}</small></div>`).join("");
 }
 function showEdited() {
   const x = items().find(i => i.id === sel);
   $("edited").textContent = x && x.updated ? S.edited(formatWhen(x.updated)) : S.notEdited;
 }
 
-// Language tabs above the text box; the open tab gets a × to remove it.
+// Language tabs above the text box. Every tab has a × (only visible on the open
+// one, via CSS) so switching tabs only moves the highlight; redrawing on click
+// would stop double-click from reaching the tab.
 function renderLangTabs() {
   const many = draft.texts.length > 1;
   $("ltabs").innerHTML = draft.texts.map((t, i) => {
     const on = i === draft.active;
-    return `<button type="button" class="ltab${on ? " on" : ""}" role="tab" aria-selected="${on}" data-i="${i}">${esc(t.lang)}` +
-      (on && many ? `<span class="lx" data-x="${i}" title="${S.removeLang}" aria-label="${S.removeLang}">×</span>` : "") + `</button>`;
+    return `<button type="button" class="ltab${on ? " on" : ""}" role="tab" aria-selected="${on}" data-i="${i}" title="${S.renameHint}">${esc(t.lang)}` +
+      (many ? `<span class="lx" data-x="${i}" title="${S.removeLang}" aria-label="${S.removeLang}">×</span>` : "") + `</button>`;
   }).join("") + `<button type="button" class="ltab add" data-add="1" title="${S.addLang}" aria-label="${S.addLang}">+</button>`;
 }
+// Shows language i in the text box; -1 means the entry has no languages yet.
 function showLang(i) {
   draft.active = i;
-  $("tx").value = draft.texts[i].text;
-  renderLangTabs();
+  const none = i < 0;
+  $("tx").classList.toggle("hide", none); $("copy").classList.toggle("hide", none); $("nolang").classList.toggle("hide", !none);
+  $("tx").value = none ? "" : draft.texts[i].text;
+  $("ltabs").querySelectorAll(".ltab[data-i]").forEach(b => { const on = +b.dataset.i === i; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
 }
+// Redraws the tabs (after languages were added, removed or renamed) and shows language i.
+function redraw(i) { draft.active = i; renderLangTabs(); showLang(i); }
 function load(x) {
   draft = { texts: x.texts.map(t => ({ ...t })), active: 0 };
   const i = draft.texts.findIndex(t => t.lang === prefLang);
   $("nm").value = x.name; $("ex").value = x.extra;
-  showLang(i < 0 ? 0 : i);
+  redraw(!draft.texts.length ? -1 : i < 0 ? 0 : i);
   dirty = false; loaded = JSON.stringify([x.name, x.texts, x.extra]);
 }
 function open(id) {
@@ -160,20 +170,50 @@ $("ltabs").addEventListener("click", e => {
     const i = +x.dataset.x;
     if (!confirm(S.confirmRemoveLang(draft.texts[i].lang))) return;
     draft.texts.splice(i, 1); dirty = true;
-    showLang(Math.min(i, draft.texts.length - 1));
+    redraw(Math.min(i, draft.texts.length - 1));
   } else if (b && b.dataset.add) {
     const name = (prompt(S.newLang) || "").trim();
     if (!name) return;
     let i = draft.texts.findIndex(t => t.lang.toLowerCase() === name.toLowerCase());
     if (i < 0) { draft.texts.push({ lang: name, text: "" }); i = draft.texts.length - 1; dirty = true; }
     prefLang = draft.texts[i].lang;
-    showLang(i); $("tx").focus();
+    redraw(i); $("tx").focus();
   } else if (b) {
     showLang(+b.dataset.i);
     prefLang = draft.texts[draft.active].lang;
   } else return;
   try { localStorage.setItem("mrtools.textLang", prefLang); } catch (e) {}
 });
+
+// Rename a language: double-click its tab (or F2), then Enter / click away to keep, Esc to cancel.
+function renameLang(i) {
+  const b = $("ltabs").querySelector(`.ltab[data-i="${i}"]`); if (!b) return;
+  const inp = document.createElement("input");
+  inp.className = "lname"; inp.value = draft.texts[i].lang; inp.setAttribute("aria-label", S.renameLabel);
+  const fit = () => { inp.size = Math.max(6, inp.value.length + 1); };
+  let done = false;
+  const finish = keep => {
+    if (done) return; done = true;
+    const old = draft.texts[i].lang, name = inp.value.trim();
+    if (keep && name && name !== old) {
+      if (draft.texts.some((t, j) => j !== i && t.lang.toLowerCase() === name.toLowerCase())) alert(S.langExists);
+      else {
+        draft.texts[i].lang = name; dirty = true;
+        if (prefLang === old) { prefLang = name; try { localStorage.setItem("mrtools.textLang", prefLang); } catch (e) {} }
+      }
+    }
+    redraw(draft.active);
+  };
+  inp.addEventListener("input", fit);
+  inp.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); finish(true); }
+    else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener("blur", () => finish(true));
+  fit(); b.replaceWith(inp); inp.focus(); inp.select();
+}
+$("ltabs").addEventListener("dblclick", e => { const b = e.target.closest(".ltab[data-i]"); if (b && !e.target.closest(".lx")) renameLang(+b.dataset.i); });
+$("ltabs").addEventListener("keydown", e => { const b = e.target.closest(".ltab[data-i]"); if (b && e.key === "F2") { e.preventDefault(); renameLang(+b.dataset.i); } });
 $("tx").addEventListener("input", () => { draft.texts[draft.active].text = $("tx").value; dirty = true; });
 $("nm").addEventListener("input", () => { dirty = true; });
 $("ex").addEventListener("input", () => { dirty = true; });
@@ -210,7 +250,7 @@ $("add").onclick = async () => {
   if (!okToLeave()) return;
   const id = newId();
   try {
-    await setDoc(doc(db, cat, id), { name: C().newName, texts: [{ lang: FIRST_LANG, text: "" }], extra: "", updatedAt: serverTimestamp() });
+    await setDoc(doc(db, cat, id), { name: C().newName, texts: [], extra: "", updatedAt: serverTimestamp() });
     dirty = false; setTimeout(() => { open(id); $("nm").select(); }, 300);
   } catch (e) { alert(S.addFail + e.message); }
 };
@@ -272,7 +312,7 @@ onAuthStateChanged(auth, user => {
       renderList();
       // Pick up changes saved elsewhere, unless there are unsaved edits here.
       const x = sel && list.find(i => i.id === sel);
-      if (x && !dirty && JSON.stringify([x.name, x.texts, x.extra]) !== loaded) { prefLang = draft.texts[draft.active].lang; load(x); }
+      if (x && !dirty && JSON.stringify([x.name, x.texts, x.extra]) !== loaded) { if (draft.active >= 0) prefLang = draft.texts[draft.active].lang; load(x); }
       if (sel) showEdited();
     }, err => { if (c === cat) { $("empty").dataset.err = 1; $("empty").textContent = S.loadFail + err.message; } }));
   } else {

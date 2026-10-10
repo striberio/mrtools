@@ -367,7 +367,29 @@ button.d {
   color: var(--acc);
 }
 
+/* Shown instead of the text box when an entry has no languages yet */
+.nolang {
+  padding: 16px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+/* Box that replaces a tab while you rename it */
+.lname {
+  width: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--acc);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 /* × inside the open tab, to remove that language */
+.ltab:not(.on) .lx {
+  display: none;
+}
+
 .lx {
   margin-right: -4px;
   padding: 0 4px;
