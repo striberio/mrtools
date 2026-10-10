@@ -4,6 +4,7 @@
 
 /* Light theme (default) */
 :root {
+  --page: #d6e3f3;  /* page background behind the panels */
   --bg: #faf9f6;
   --card: #fff;
   --ink: #1f2328;
@@ -19,6 +20,7 @@
    Keep these values in sync with the block below. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --page: #161816;
     --bg: #161816;
     --card: #202320;
     --ink: #ececea;
@@ -34,6 +36,7 @@
 
 /* Dark theme, picked with the theme button */
 :root[data-theme="dark"] {
+  --page: #161816;
   --bg: #161816;
   --card: #202320;
   --ink: #ececea;
@@ -57,7 +60,7 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--page);
   color: var(--ink);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
