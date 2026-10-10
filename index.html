@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools</title>
 <!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 
@@ -45,7 +45,7 @@
       <div class="row" id="copyrow"><button class="p" id="copy"></button></div>
       <div id="exwrap">
         <label for="ex">Note extra</label>
-        <textarea id="ex" class="notes extra"></textarea>
+        <textarea id="ex" class="notes"></textarea>
         <div class="row"><button class="p" id="copyex">Copia note</button></div>
       </div>
       <div class="row">
@@ -65,7 +65,7 @@
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear } from "./common.js?v=7";
+import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear } from "./common.js?v=8";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
