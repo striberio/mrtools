@@ -42,8 +42,10 @@
       <div class="ltabs" id="ltabs" role="tablist"></div>
       <div class="mute nolang hide" id="nolang">Nessuna lingua ancora: aggiungine una con +.</div>
       <textarea id="tx"></textarea>
-      <label for="ex">Note extra</label>
-      <textarea id="ex" class="notes extra"></textarea>
+      <div id="exwrap">
+        <label for="ex">Note extra</label>
+        <textarea id="ex" class="notes extra"></textarea>
+      </div>
       <div class="row">
         <button class="p" id="copy">Copia messaggio</button>
         <div class="right">
@@ -107,16 +109,20 @@ const okToLeave = () => !dirty || confirm(S.unsaved);
 
 // Entries saved before language tabs have a single `text`: show it as the English
 // version, or no tabs if it was empty. Saved tabs are kept even while their text is empty.
+// Each tab has its own extra notes. Notes saved before that (one `extra` for the whole
+// entry) are copied into every tab; if the entry has no tabs yet they are kept in `extra`
+// and go into the first language added.
 function toEntry(d) {
   const v = d.data({ serverTimestamps: "estimate" });
+  const shared = v.extra || "";
   const texts = Array.isArray(v.texts)
-    ? v.texts.map(t => ({ lang: String(t.lang || FIRST_LANG), text: String(t.text || "") }))
-    : (v.text || "").trim() ? [{ lang: FIRST_LANG, text: v.text }] : [];
-  return { id: d.id, name: v.name || "", texts, extra: v.extra || "", updated: v.updatedAt ? v.updatedAt.toDate() : null };
+    ? v.texts.map(t => ({ lang: String(t.lang || FIRST_LANG), text: String(t.text || ""), extra: typeof t.extra === "string" ? t.extra : shared }))
+    : (v.text || "").trim() ? [{ lang: FIRST_LANG, text: v.text, extra: shared }] : [];
+  return { id: d.id, name: v.name || "", texts, extra: texts.length ? "" : shared, updated: v.updatedAt ? v.updatedAt.toDate() : null };
 }
 
 function renderList() {
-  const f = searchList(items(), $("q").value, x => [x.name, x.texts.map(t => t.text).join(" "), x.extra]);
+  const f = searchList(items(), $("q").value, x => [x.name, x.texts.map(t => t.text + " " + t.extra).join(" "), x.extra]);
   $("count").textContent = S.shown(f.length, items().length);
   $("list").innerHTML = f.map(x =>
     `<div class="item${x.id === sel ? " on" : ""}" data-id="${x.id}">${esc(x.name || "(senza nome)")}<small>${esc((x.texts.length ? x.texts[0].text : "").replace(/\s+/g, " ").slice(0, 70))}</small></div>`).join("");
@@ -141,16 +147,18 @@ function renderLangTabs() {
 function showLang(i) {
   draft.active = i;
   const none = i < 0;
-  $("tx").classList.toggle("hide", none); $("copy").classList.toggle("hide", none); $("nolang").classList.toggle("hide", !none);
+  $("tx").classList.toggle("hide", none); $("exwrap").classList.toggle("hide", none); $("copy").classList.toggle("hide", none); $("nolang").classList.toggle("hide", !none);
   $("tx").value = none ? "" : draft.texts[i].text;
+  $("ex").value = none ? "" : draft.texts[i].extra;
   $("ltabs").querySelectorAll(".ltab[data-i]").forEach(b => { const on = +b.dataset.i === i; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
 }
 // Redraws the tabs (after languages were added, removed or renamed) and shows language i.
 function redraw(i) { draft.active = i; renderLangTabs(); showLang(i); }
+// draft.extra holds old whole-entry notes of an entry without tabs, until a language is added.
 function load(x) {
-  draft = { texts: x.texts.map(t => ({ ...t })), active: 0 };
+  draft = { texts: x.texts.map(t => ({ ...t })), extra: x.extra, active: 0 };
   const i = draft.texts.findIndex(t => t.lang === prefLang);
-  $("nm").value = x.name; $("ex").value = x.extra;
+  $("nm").value = x.name;
   redraw(!draft.texts.length ? -1 : i < 0 ? 0 : i);
   dirty = false; loaded = JSON.stringify([x.name, x.texts, x.extra]);
 }
@@ -175,7 +183,7 @@ $("ltabs").addEventListener("click", e => {
     const name = (prompt(S.newLang) || "").trim();
     if (!name) return;
     let i = draft.texts.findIndex(t => t.lang.toLowerCase() === name.toLowerCase());
-    if (i < 0) { draft.texts.push({ lang: name, text: "" }); i = draft.texts.length - 1; dirty = true; }
+    if (i < 0) { draft.texts.push({ lang: name, text: "", extra: draft.extra }); draft.extra = ""; i = draft.texts.length - 1; dirty = true; }
     prefLang = draft.texts[i].lang;
     redraw(i); $("tx").focus();
   } else if (b) {
@@ -216,7 +224,7 @@ $("ltabs").addEventListener("dblclick", e => { const b = e.target.closest(".ltab
 $("ltabs").addEventListener("keydown", e => { const b = e.target.closest(".ltab[data-i]"); if (b && e.key === "F2") { e.preventDefault(); renameLang(+b.dataset.i); } });
 $("tx").addEventListener("input", () => { draft.texts[draft.active].text = $("tx").value; dirty = true; });
 $("nm").addEventListener("input", () => { dirty = true; });
-$("ex").addEventListener("input", () => { dirty = true; });
+$("ex").addEventListener("input", () => { draft.texts[draft.active].extra = $("ex").value; dirty = true; });
 
 function applyText() {
   const c = C();
@@ -250,17 +258,19 @@ $("add").onclick = async () => {
   if (!okToLeave()) return;
   const id = newId();
   try {
-    await setDoc(doc(db, cat, id), { name: C().newName, texts: [], extra: "", updatedAt: serverTimestamp() });
+    await setDoc(doc(db, cat, id), { name: C().newName, texts: [], updatedAt: serverTimestamp() });
     dirty = false; setTimeout(() => { open(id); $("nm").select(); }, 300);
   } catch (e) { alert(S.addFail + e.message); }
 };
 $("save").onclick = async () => {
   if (!sel) return;
-  const name = $("nm").value.trim(), texts = draft.texts.map(t => ({ lang: t.lang, text: t.text })), extra = $("ex").value;
+  const name = $("nm").value.trim(), texts = draft.texts.map(t => ({ lang: t.lang, text: t.text, extra: t.extra })), extra = draft.extra;
   // Typing during the save marks the entry as changed again.
   dirty = false; loaded = JSON.stringify([name, texts, extra]);
+  const data = { name, texts, updatedAt: serverTimestamp() };
+  if (extra) data.extra = extra;
   try {
-    await setDoc(doc(db, cat, sel), { name, texts, extra, updatedAt: serverTimestamp() });
+    await setDoc(doc(db, cat, sel), data);
     say(S.saved);
   } catch (e) { dirty = true; say(S.saveFail); }
 };
@@ -281,7 +291,7 @@ $("impgo").onclick = async () => {
   try {
     await Promise.all(blocks.map(b => {
       const l = b.split("\n"), name = l.shift().trim();
-      return setDoc(doc(db, cat, newId()), { name, texts: [{ lang: FIRST_LANG, text: l.join("\n").trim() }], extra: "", updatedAt: serverTimestamp() });
+      return setDoc(doc(db, cat, newId()), { name, texts: [{ lang: FIRST_LANG, text: l.join("\n").trim(), extra: "" }], updatedAt: serverTimestamp() });
     }));
     $("imptx").value = ""; show("empty");
   } catch (e) { $("impmsg").textContent = S.impFail + e.message; }
