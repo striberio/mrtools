@@ -80,6 +80,7 @@ label {
    ========================================================================== */
 
 input,
+select,
 textarea {
   width: 100%;
   font: inherit;
@@ -137,7 +138,7 @@ button.d {
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 16px 0;
-  max-width: 1100px;
+  max-width: 1140px;
   margin: 0 auto;
 }
 
@@ -201,7 +202,7 @@ button.d {
   display: grid;
   grid-template-columns: 300px 1fr;
   gap: 16px;
-  max-width: 1100px;
+  max-width: 1140px;
   margin: 0 auto;
   padding: 16px;
 }
@@ -259,6 +260,43 @@ button.d {
   box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
 }
 
+/* Search box with a × at the right end to clear it */
+.search {
+  position: relative;
+}
+
+.search input {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 36px;
+}
+
+/* Hide the browser's own clear button, we have ours */
+.search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.search .clear {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mute);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.search .clear:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
 /* List of houses or messages */
 .list {
   margin-top: 10px;
@@ -294,36 +332,64 @@ button.d {
 
 
 /* ==========================================================================
+   Editor: language tabs above the text box
+   ========================================================================== */
+
+.ltabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.ltab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--mute);
+}
+
+/* Language being shown */
+.ltab.on {
+  background: var(--sel);
+  border-color: var(--acc);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* "+" button to add a language */
+.ltab.add {
+  padding: 5px 11px;
+  font-weight: 600;
+  color: var(--acc);
+}
+
+/* × inside the open tab, to remove that language */
+.lx {
+  margin-right: -4px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-weight: 400;
+  color: var(--mute);
+}
+
+.lx:hover {
+  background: var(--line);
+  color: var(--bad);
+}
+
+
+/* ==========================================================================
    Houses page
    ========================================================================== */
 
-/* Category filter buttons */
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+/* Category filter dropdown */
+.catsel {
   margin-top: 10px;
-}
-
-.chip {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 13px;
-}
-
-.chip span {
-  color: var(--mute);
-  margin-left: 2px;
-}
-
-.chip.on {
-  background: var(--acc);
-  color: var(--accInk);
-  border-color: var(--acc);
-}
-
-.chip.on span {
-  color: inherit;
+  cursor: pointer;
 }
 
 /* Category heading inside the list */
@@ -372,6 +438,15 @@ textarea.notes {
 #lmsg,
 #count {
   margin-top: 8px;
+}
+
+/* Group of buttons at the right end of a .row; on narrow screens it
+   moves to its own line as a whole and stays on the right */
+.row .right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
 }
 
 .hide {

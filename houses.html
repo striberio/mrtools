@@ -5,77 +5,62 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools – Case</title>
 <!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
-<div class="top"><div class="menuwrap hide" id="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">☰ Menu</button><nav class="menu hide" id="menu"></nav></div><button id="theme" type="button"></button><button id="lang" type="button"></button><button id="out" type="button" class="hide" data-i18n="signOut"></button></div>
+<div class="top"><div class="menuwrap hide" id="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">☰ Menu</button><nav class="menu hide" id="menu"></nav></div><button id="theme" type="button"></button><button id="out" type="button" class="hide">Esci</button></div>
 
 <div class="app hide" id="app">
   <div class="panel">
-    <h1 data-i18n="title"></h1>
-    <input id="q" autocomplete="off" data-i18n-ph="search">
-    <div class="chips" id="chips"></div>
-    <div class="row"><button class="p" id="add" data-i18n="new"></button></div>
+    <h1>Case</h1>
+    <div class="search"><input id="q" type="search" autocomplete="off" placeholder="Cerca nome, indirizzo o note…"><button type="button" class="clear hide" title="Cancella ricerca" aria-label="Cancella ricerca">×</button></div>
+    <select class="catsel" id="catsel" aria-label="Filtra per categoria"></select>
+    <div class="row"><button class="p" id="add">+ Nuova casa</button></div>
     <div class="mute" id="count"></div>
     <div class="list" id="list"></div>
   </div>
   <div class="panel">
-    <div class="mute" id="empty" data-i18n="empty"></div>
+    <div class="mute" id="empty">Seleziona una casa a sinistra o aggiungine una nuova.</div>
     <div id="ed" class="hide">
-      <label for="nm" data-i18n="name"></label>
+      <label for="nm">Nome della casa</label>
       <input id="nm">
-      <label for="ct"><span data-i18n="category"></span> <span class="mute" data-i18n="categoryHint"></span></label>
+      <label for="ct">Categoria <span class="mute">(scegline una o scrivine una nuova)</span></label>
       <input id="ct" list="cats" autocomplete="off">
       <datalist id="cats"></datalist>
-      <label for="ad" data-i18n="address"></label>
+      <label for="ad">Indirizzo</label>
       <input id="ad">
-      <label for="nt" data-i18n="notes"></label>
+      <label for="nt">Note</label>
       <div class="edited" id="edited"></div>
       <textarea id="nt" class="notes"></textarea>
       <div class="row">
-        <button class="p" id="save" data-i18n="save"></button>
-        <button class="d" id="del" data-i18n="delete"></button>
-        <span class="mute" id="msg"></span>
+        <div class="right">
+          <span class="mute" id="msg"></span>
+          <button class="p" id="save">Salva modifiche</button>
+          <button class="d" id="del">Elimina</button>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu, searchList } from "./common.js?v=3";
+import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear } from "./common.js?v=4";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const COL = "properties";
-const I18N = {
-  it: {
-    other: "English", edited: w => "Ultima modifica: " + w, notEdited: "Ultima modifica: non registrata", toDark: "Tema scuro", toLight: "Tema chiaro",
-    title: "Case", search: "Cerca nome, indirizzo o note…", all: "Tutte", none: "Senza categoria",
-    new: "+ Nuova casa", signOut: "Esci", shown: (a, b) => a + " di " + b + " visualizzate",
-    empty: "Seleziona una casa a sinistra o aggiungine una nuova.",
-    name: "Nome della casa", category: "Categoria", categoryHint: "(scegline una o scrivine una nuova)", address: "Indirizzo", notes: "Note",
-    save: "Salva modifiche", delete: "Elimina", newName: "Nuova casa", del: "Eliminare questa casa?",
-    saved: "Salvato ✓", saveFail: "Impossibile salvare", delFail: "Impossibile eliminare",
-    addFail: "Impossibile aggiungere: ", loadFail: "Impossibile caricare i dati: "
-  },
-  en: {
-    other: "Italiano", edited: w => "Last edited: " + w, notEdited: "Last edited: not recorded", toDark: "Dark mode", toLight: "Light mode",
-    title: "Houses", search: "Search name, address, or notes…", all: "All", none: "No category",
-    new: "+ New house", signOut: "Sign out", shown: (a, b) => a + " of " + b + " shown",
-    empty: "Select a house on the left, or add a new one.",
-    name: "House name", category: "Category", categoryHint: "(pick one or type a new one)", address: "Address", notes: "Notes",
-    save: "Save changes", delete: "Delete", newName: "New house", del: "Delete this house?",
-    saved: "Saved ✓", saveFail: "Could not save", delFail: "Could not delete",
-    addFail: "Could not add: ", loadFail: "Could not load data: "
-  }
+const S = {
+  edited: w => "Ultima modifica: " + w, notEdited: "Ultima modifica: non registrata", toDark: "Tema scuro", toLight: "Tema chiaro",
+  all: "Tutte le categorie", none: "Senza categoria", shown: (a, b) => a + " di " + b + " visualizzate",
+  newName: "Nuova casa", del: "Eliminare questa casa?",
+  saved: "Salvato ✓", saveFail: "Impossibile salvare", delFail: "Impossibile eliminare",
+  addFail: "Impossibile aggiungere: ", loadFail: "Impossibile caricare i dati: "
 };
 
 const $ = i => document.getElementById(i);
-let lang = "it", items = [], sel = null, filter = null, unsub = null;
-try { if (I18N[localStorage.getItem("mrtools.lang")]) lang = localStorage.getItem("mrtools.lang"); } catch (e) {}
+let items = [], sel = null, filter = null, unsub = null;
 try { filter = localStorage.getItem("mrtools.houseFilter"); } catch (e) {}
-const T = () => I18N[lang];
 
 const esc = s => { const d = document.createElement("div"); d.textContent = s; return d.innerHTML.replace(/"/g, "&quot;"); };
 const newId = () => "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -100,11 +85,14 @@ function setFilter(f) {
 }
 
 function render() {
-  const t = T(), cats = categories(), af = activeFilter();
+  const t = S, cats = categories(), af = activeFilter();
   const count = c => items.filter(x => x.category === c).length;
-  $("chips").innerHTML =
-    `<button class="chip${af === null ? " on" : ""}" data-f="*">${esc(t.all)} <span>${items.length}</span></button>` +
-    cats.map(c => `<button class="chip${af === c ? " on" : ""}" data-f="${esc(c)}">${esc(c || t.none)} <span>${count(c)}</span></button>`).join("");
+  // Option values are positions in `cats`; "" means all categories.
+  // Only rebuilt when something changed, so an open dropdown isn't closed.
+  const opts = `<option value="">${esc(t.all)} (${items.length})</option>` +
+    cats.map((c, i) => `<option value="${i}">${esc(c || t.none)} (${count(c)})</option>`).join("");
+  if ($("catsel").dataset.opts !== opts) { $("catsel").innerHTML = opts; $("catsel").dataset.opts = opts; }
+  $("catsel").value = af === null ? "" : String(cats.indexOf(af));
   $("cats").innerHTML = cats.filter(Boolean).map(c => `<option value="${esc(c)}">`).join("");
 
   const f = searchList(items.filter(x => af === null || x.category === af), $("q").value, x => [x.name + " " + x.address, x.category, x.notes]);
@@ -120,7 +108,7 @@ function render() {
 function fill(x) { $("nm").value = x.name; $("ct").value = x.category; $("ad").value = x.address; $("nt").value = x.notes; }
 function showEdited() {
   const x = items.find(i => i.id === sel);
-  $("edited").textContent = x && x.updated ? T().edited(formatWhen(x.updated, lang)) : T().notEdited;
+  $("edited").textContent = x && x.updated ? S.edited(formatWhen(x.updated)) : S.notEdited;
 }
 function open(id) {
   const x = items.find(i => i.id === id); if (!x) return;
@@ -128,14 +116,8 @@ function open(id) {
 }
 
 function applyText() {
-  const t = T();
-  document.documentElement.lang = lang;
-  document.title = "MRTools – " + t.title;
-  document.querySelectorAll("[data-i18n]").forEach(n => { n.textContent = t[n.dataset.i18n]; });
-  document.querySelectorAll("[data-i18n-ph]").forEach(n => { n.placeholder = t[n.dataset.i18nPh]; });
-  $("lang").textContent = t.other;
-  renderMenu(lang);
-  const dark = isDark(); $("theme").textContent = dark ? "☀" : "☾"; $("theme").title = dark ? t.toLight : t.toDark; $("theme").setAttribute("aria-label", $("theme").title);
+  renderMenu();
+  const dark = isDark(); $("theme").textContent = dark ? "☀" : "☾"; $("theme").title = dark ? S.toLight : S.toDark; $("theme").setAttribute("aria-label", $("theme").title);
   showEdited(); render();
 }
 
@@ -149,33 +131,29 @@ $("theme").onclick = () => {
   try { localStorage.setItem("mrtools.theme", th); } catch (e) {}
   applyText();
 };
-$("lang").onclick = () => {
-  lang = lang === "it" ? "en" : "it";
-  try { localStorage.setItem("mrtools.lang", lang); } catch (e) {}
-  applyText();
-};
 
 $("list").addEventListener("click", e => { const n = e.target.closest(".item"); if (n) open(n.dataset.id); });
-$("chips").addEventListener("click", e => { const b = e.target.closest(".chip"); if (b) setFilter(b.dataset.f === "*" ? null : b.dataset.f); });
+$("catsel").addEventListener("change", e => { const v = e.target.value; setFilter(v === "" ? null : categories()[+v]); });
 $("q").addEventListener("input", render);
+initSearchClear($("q"), render);
 
 $("add").onclick = async () => {
   const id = newId();
   try {
-    await setDoc(doc(db, COL, id), { name: T().newName, category: activeFilter() || "", address: "", notes: "", updatedAt: serverTimestamp() });
+    await setDoc(doc(db, COL, id), { name: S.newName, category: activeFilter() || "", address: "", notes: "", updatedAt: serverTimestamp() });
     sel = id; setTimeout(() => { open(id); $("nm").select(); }, 300);
-  } catch (e) { alert(T().addFail + e.message); }
+  } catch (e) { alert(S.addFail + e.message); }
 };
 $("save").onclick = async () => {
   if (!sel) return;
   try {
     await setDoc(doc(db, COL, sel), { name: $("nm").value.trim(), category: $("ct").value.trim(), address: $("ad").value.trim(), notes: $("nt").value, updatedAt: serverTimestamp() });
-    say(T().saved);
-  } catch (e) { say(T().saveFail); }
+    say(S.saved);
+  } catch (e) { say(S.saveFail); }
 };
 $("del").onclick = async () => {
-  if (!sel || !confirm(T().del)) return;
-  try { await deleteDoc(doc(db, COL, sel)); sel = null; show("empty"); } catch (e) { say(T().delFail); }
+  if (!sel || !confirm(S.del)) return;
+  try { await deleteDoc(doc(db, COL, sel)); sel = null; show("empty"); } catch (e) { say(S.delFail); }
 };
 $("out").onclick = () => signOut(auth);
 initMenu();
@@ -193,7 +171,7 @@ onAuthStateChanged(auth, user => {
     const busy = ["nm", "ct", "ad", "nt"].includes(document.activeElement && document.activeElement.id);
     if (sel && !busy && !$("ed").classList.contains("hide")) { const x = items.find(i => i.id === sel); if (x) fill(x); }
     if (sel) showEdited();
-  }, err => { $("empty").textContent = T().loadFail + err.message; });
+  }, err => { $("empty").textContent = S.loadFail + err.message; });
 });
 </script>
 </body>

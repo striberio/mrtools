@@ -15,14 +15,14 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// "29 set 2026, 15:13" / "29 Sept 2026, 15:13"
-export const formatWhen = (date, lang) =>
-  new Intl.DateTimeFormat(lang === "it" ? "it-IT" : "en-GB", { dateStyle: "medium", timeStyle: "short" }).format(date);
+// "29 set 2026, 15:13"
+export const formatWhen = date =>
+  new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" }).format(date);
 
 // Pages listed in the top-left menu. To add a feature, add a line here.
 const PAGES = [
-  { href: "index.html", it: "Check-in e messaggi", en: "Check-in & messages" },
-  { href: "houses.html", it: "Case", en: "Houses" }
+  { href: "index.html", label: "Check-in e messaggi" },
+  { href: "houses.html", label: "Case" }
 ];
 
 // Top-left menu: needs <button id="menuBtn"> and <nav id="menu"> in the top bar.
@@ -34,17 +34,17 @@ export function initMenu() {
   document.addEventListener("keydown", e => { if (e.key === "Escape") setOpen(false); });
 }
 
-// Fills in the menu in the given language, marking the current page.
-export function renderMenu(lang) {
+// Fills in the menu, marking the current page.
+export function renderMenu() {
   const here = location.pathname.split("/").pop() || "index.html";
   document.getElementById("menu").innerHTML = PAGES.map(p =>
-    `<a href="${p.href}"${p.href === here ? ' class="on" aria-current="page"' : ""}>${p[lang] || p.en}</a>`).join("");
+    `<a href="${p.href}"${p.href === here ? ' class="on" aria-current="page"' : ""}>${p.label}</a>`).join("");
 }
 
 // Search: "cad 15" finds "Cadorna 15". Each typed word must be the start of some
 // word in the entry (or anywhere inside one, if 3+ characters), in any order;
 // case and accents are ignored.
-const words = s => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/\p{L}+|\p{N}+/gu) || [];
+const words = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/\p{L}+|\p{N}+/gu) || [];
 
 // Returns null for an empty search, otherwise match(main, ...other) giving
 // 2 if every word is found in `main` (e.g. the name), 1 if found across all fields, 0 if not.
@@ -65,3 +65,13 @@ export const searchList = (list, query, fields) => {
   if (!match) return list;
   return list.map(x => ({ x, s: match(...fields(x)) })).filter(r => r.s).sort((a, b) => b.s - a.s).map(r => r.x);
 };
+
+// × at the right end of a search box: shown while there is text, clears it on click.
+// Needs the input wrapped in <div class="search"> with a <button class="clear"> after it.
+export function initSearchClear(input, onChange) {
+  const btn = input.parentElement.querySelector(".clear");
+  const sync = () => btn.classList.toggle("hide", !input.value);
+  input.addEventListener("input", sync);
+  btn.onclick = () => { input.value = ""; sync(); onChange(); input.focus(); };
+  sync();
+}
