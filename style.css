@@ -436,6 +436,11 @@ textarea.notes {
   font-size: 15px;
 }
 
+/* "Note extra" on the check-in page: half the height of the notes box */
+textarea.notes.extra {
+  min-height: 80px;
+}
+
 
 /* ==========================================================================
    Helpers
