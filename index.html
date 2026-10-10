@@ -42,12 +42,13 @@
       <div class="ltabs" id="ltabs" role="tablist"></div>
       <div class="mute nolang hide" id="nolang">Nessuna lingua ancora: aggiungine una con +.</div>
       <textarea id="tx"></textarea>
+      <div class="row" id="copyrow"><button class="p" id="copy"></button></div>
       <div id="exwrap">
         <label for="ex">Note extra</label>
         <textarea id="ex" class="notes extra"></textarea>
+        <div class="row"><button class="p" id="copyex">Copia note</button></div>
       </div>
       <div class="row">
-        <button class="p" id="copy">Copia messaggio</button>
         <div class="right">
           <span class="mute" id="msg"></span>
           <button id="save">Salva modifiche</button>
@@ -83,8 +84,8 @@ const S = {
   addLang: "Aggiungi lingua", newLang: "Nome della nuova lingua (es. Italiano):", removeLang: "Elimina questa lingua",
   confirmRemoveLang: l => `Eliminare la versione "${l}" da questa voce? Diventa definitivo quando salvi.`,
   unsaved: "Ci sono modifiche non salvate in questa voce. Vuoi scartarle?",
-  houses: { q: "Cerca casa, stanza o testo…", empty: "Seleziona una casa a sinistra o aggiungine una nuova.", nm: "Nome casa / stanza", tx: "Istruzioni", imp: "le istruzioni", newName: "Nuova casa", del: "Eliminare questa casa e le sue istruzioni?" },
-  messages: { q: "Cerca messaggi…", empty: "Seleziona un messaggio a sinistra o aggiungine uno nuovo.", nm: "Titolo del messaggio", tx: "Messaggio", imp: "il messaggio", newName: "Nuovo messaggio", del: "Eliminare questo messaggio?" }
+  houses: { q: "Cerca casa, stanza o testo…", empty: "Seleziona una casa a sinistra o aggiungine una nuova.", nm: "Nome casa / stanza", tx: "Istruzioni", copy: "Copia istruzioni", imp: "le istruzioni", newName: "Nuova casa", del: "Eliminare questa casa e le sue istruzioni?" },
+  messages: { q: "Cerca messaggi…", empty: "Seleziona un messaggio a sinistra o aggiungine uno nuovo.", nm: "Titolo del messaggio", tx: "Messaggio", copy: "Copia messaggio", imp: "il messaggio", newName: "Nuovo messaggio", del: "Eliminare questo messaggio?" }
 };
 const CATS = { houses: 1, messages: 1 };
 const C = () => S[cat];
@@ -147,7 +148,7 @@ function renderLangTabs() {
 function showLang(i) {
   draft.active = i;
   const none = i < 0;
-  $("tx").classList.toggle("hide", none); $("exwrap").classList.toggle("hide", none); $("copy").classList.toggle("hide", none); $("nolang").classList.toggle("hide", !none);
+  $("tx").classList.toggle("hide", none); $("exwrap").classList.toggle("hide", none); $("copyrow").classList.toggle("hide", none); $("nolang").classList.toggle("hide", !none);
   $("tx").value = none ? "" : draft.texts[i].text;
   $("ex").value = none ? "" : draft.texts[i].extra;
   $("ltabs").querySelectorAll(".ltab[data-i]").forEach(b => { const on = +b.dataset.i === i; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
@@ -230,7 +231,7 @@ function applyText() {
   const c = C();
   renderMenu();
   const dark = isDark(); $("theme").textContent = dark ? "☀" : "☾"; $("theme").title = dark ? S.toLight : S.toDark; $("theme").setAttribute("aria-label", $("theme").title);
-  $("q").placeholder = c.q; $("nmlbl").textContent = c.nm; $("txlbl").textContent = c.tx; $("implbl").innerHTML = S.imp(c.imp);
+  $("q").placeholder = c.q; $("nmlbl").textContent = c.nm; $("txlbl").textContent = c.tx; if ($("copy").dataset.label) $("copy").dataset.label = c.copy; else $("copy").textContent = c.copy; $("implbl").innerHTML = S.imp(c.imp);
   if (!$("empty").dataset.err) $("empty").textContent = c.empty;
   showEdited(); renderList();
 }
@@ -278,11 +279,18 @@ $("del").onclick = async () => {
   if (!sel || !confirm(C().del)) return;
   try { await deleteDoc(doc(db, cat, sel)); sel = null; draft = null; dirty = false; show("empty"); } catch (e) { say(S.delFail); }
 };
-$("copy").onclick = () => {
-  const t = $("tx").value;
-  const fb = () => { const a = document.createElement("textarea"); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); say(S.copied); } catch (e) { say(S.copyFail); } a.remove(); };
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => say(S.copied), fb); else fb();
-};
+// Copies text and briefly shows the result on the button that was clicked.
+function copyText(t, btn) {
+  const done = ok => {
+    clearTimeout(btn._t); if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+    btn.textContent = ok ? S.copied : S.copyFail;
+    btn._t = setTimeout(() => { btn.textContent = btn.dataset.label; delete btn.dataset.label; }, 1500);
+  };
+  const fb = () => { const a = document.createElement("textarea"); a.value = t; document.body.appendChild(a); a.select(); let ok = false; try { ok = document.execCommand("copy"); } catch (e) {} a.remove(); done(ok); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => done(true), fb); else fb();
+}
+$("copy").onclick = () => copyText($("tx").value, $("copy"));
+$("copyex").onclick = () => copyText($("ex").value, $("copyex"));
 $("imp").onclick = () => { if (!okToLeave()) return; sel = null; draft = null; dirty = false; renderList(); show("imp"); $("impmsg").textContent = ""; };
 $("impx").onclick = () => show("empty");
 $("impgo").onclick = async () => {
