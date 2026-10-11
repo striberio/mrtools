@@ -444,6 +444,17 @@ textarea.notes {
    Helpers
    ========================================================================== */
 
+/* Viewers (everyone but the admin) don't see editing controls */
+body.viewer .admin-only,
+body:not(.viewer) .viewer-only {
+  display: none;
+}
+
+.viewer input[readonly],
+.viewer textarea[readonly] {
+  cursor: default;
+}
+
 /* "Last edited" line above the text box */
 .edited {
   margin-bottom: 4px;

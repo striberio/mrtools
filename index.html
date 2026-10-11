@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools</title>
 <!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -28,7 +28,7 @@
     <h1>MRTools</h1>
     <div class="tabs" id="tabs"><button data-cat="houses" class="on">Check-in</button><button data-cat="messages">Messaggi</button></div>
     <div class="search"><input id="q" type="search" autocomplete="off"><button type="button" class="clear hide" title="Cancella ricerca" aria-label="Cancella ricerca">×</button></div>
-    <div class="row"><button class="p" id="add">+ Nuovo</button><button id="imp">Importa in blocco</button></div>
+    <div class="row admin-only"><button class="p" id="add">+ Nuovo</button><button id="imp">Importa in blocco</button></div>
     <div class="mute" id="count"></div>
     <div class="list" id="list"></div>
   </div>
@@ -40,7 +40,7 @@
       <label for="tx" id="txlbl"></label>
       <div class="edited" id="edited"></div>
       <div class="ltabs" id="ltabs" role="tablist"></div>
-      <div class="mute nolang hide" id="nolang">Nessuna lingua ancora: aggiungine una con +.</div>
+      <div class="mute nolang hide" id="nolang"><span class="admin-only">Nessuna lingua ancora: aggiungine una con +.</span><span class="viewer-only">Nessun testo per questa voce.</span></div>
       <textarea id="tx"></textarea>
       <div class="row" id="copyrow"><button class="p" id="copy"></button></div>
       <div id="exwrap">
@@ -49,7 +49,7 @@
         <div class="row"><button class="p" id="copyex">Copia note</button></div>
       </div>
       <div class="row">
-        <div class="right">
+        <div class="right admin-only">
           <span class="mute" id="msg"></span>
           <button id="save">Salva modifiche</button>
           <button class="d" id="del">Elimina</button>
@@ -65,7 +65,7 @@
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear } from "./common.js?v=8";
+import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear, isAdmin, applyRole } from "./common.js?v=9";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -98,6 +98,8 @@ const items = () => data[cat];
 // Editor state for the open entry: its language versions, which one is shown,
 // whether anything changed since it was loaded or saved, and what was loaded.
 let draft = null, dirty = false, loaded = "";
+// Only the admin can edit; set at sign-in.
+let admin = false;
 // Language tab to show first when opening an entry (the last one you picked).
 let prefLang = FIRST_LANG;
 try { prefLang = localStorage.getItem("mrtools.textLang") || FIRST_LANG; } catch (e) {}
@@ -141,8 +143,8 @@ function renderLangTabs() {
   $("ltabs").innerHTML = draft.texts.map((t, i) => {
     const on = i === draft.active;
     return `<button type="button" class="ltab${on ? " on" : ""}" role="tab" aria-selected="${on}" data-i="${i}" title="${S.renameHint}">${esc(t.lang)}` +
-      (many ? `<span class="lx" data-x="${i}" title="${S.removeLang}" aria-label="${S.removeLang}">×</span>` : "") + `</button>`;
-  }).join("") + `<button type="button" class="ltab add" data-add="1" title="${S.addLang}" aria-label="${S.addLang}">+</button>`;
+      (many ? `<span class="lx admin-only" data-x="${i}" title="${S.removeLang}" aria-label="${S.removeLang}">×</span>` : "") + `</button>`;
+  }).join("") + `<button type="button" class="ltab add admin-only" data-add="1" title="${S.addLang}" aria-label="${S.addLang}">+</button>`;
 }
 // Shows language i in the text box; -1 means the entry has no languages yet.
 function showLang(i) {
@@ -196,6 +198,7 @@ $("ltabs").addEventListener("click", e => {
 
 // Rename a language: double-click its tab (or F2), then Enter / click away to keep, Esc to cancel.
 function renameLang(i) {
+  if (!admin) return;
   const b = $("ltabs").querySelector(`.ltab[data-i="${i}"]`); if (!b) return;
   const inp = document.createElement("input");
   inp.className = "lname"; inp.value = draft.texts[i].lang; inp.setAttribute("aria-label", S.renameLabel);
@@ -321,6 +324,7 @@ initMenu();
 
 onAuthStateChanged(auth, user => {
   if (user) {
+    admin = isAdmin(user); applyRole(admin, [$("nm"), $("tx"), $("ex")]);
     $("login").classList.add("hide"); $("app").classList.remove("hide"); $("out").classList.remove("hide"); $("menuwrap").classList.remove("hide");
     unsubs = Object.keys(CATS).map(c => onSnapshot(collection(db, c), snap => {
       const list = snap.docs.map(toEntry);
@@ -335,6 +339,7 @@ onAuthStateChanged(auth, user => {
     }, err => { if (c === cat) { $("empty").dataset.err = 1; $("empty").textContent = S.loadFail + err.message; } }));
   } else {
     unsubs.forEach(u => u()); unsubs = [];
+    admin = false; applyRole(false, [$("nm"), $("tx"), $("ex")]);
     data = { houses: [], messages: [] }; sel = null; draft = null; dirty = false; show("empty");
     $("app").classList.add("hide"); $("out").classList.add("hide"); $("menuwrap").classList.add("hide"); $("login").classList.remove("hide");
   }

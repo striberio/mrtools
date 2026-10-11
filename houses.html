@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools – Case</title>
 <!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -16,7 +16,7 @@
     <h1>Case</h1>
     <div class="search"><input id="q" type="search" autocomplete="off" placeholder="Cerca nome, indirizzo o note…"><button type="button" class="clear hide" title="Cancella ricerca" aria-label="Cancella ricerca">×</button></div>
     <select class="catsel" id="catsel" aria-label="Filtra per categoria"></select>
-    <div class="row"><button class="p" id="add">+ Nuova casa</button></div>
+    <div class="row admin-only"><button class="p" id="add">+ Nuova casa</button></div>
     <div class="mute" id="count"></div>
     <div class="list" id="list"></div>
   </div>
@@ -34,7 +34,7 @@
       <div class="edited" id="edited"></div>
       <textarea id="nt" class="notes"></textarea>
       <div class="row">
-        <div class="right">
+        <div class="right admin-only">
           <span class="mute" id="msg"></span>
           <button class="p" id="save">Salva modifiche</button>
           <button class="d" id="del">Elimina</button>
@@ -45,7 +45,7 @@
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear } from "./common.js?v=8";
+import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear, isAdmin, applyRole } from "./common.js?v=9";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -164,6 +164,7 @@ applyText();
 onAuthStateChanged(auth, user => {
   if (!user) { if (unsub) unsub(); location.replace("index.html"); return; }
   $("app").classList.remove("hide"); $("out").classList.remove("hide"); $("menuwrap").classList.remove("hide");
+  applyRole(isAdmin(user), [$("nm"), $("ct"), $("ad"), $("nt")]);
   unsub = onSnapshot(collection(db, COL), snap => {
     items = snap.docs.map(d => { const v = d.data({ serverTimestamps: "estimate" }); return { id: d.id, name: v.name || "", category: v.category || "", address: v.address || "", notes: v.notes || "", updated: v.updatedAt ? v.updatedAt.toDate() : null }; });
     items.sort((a, b) => byName(a.name, b.name));

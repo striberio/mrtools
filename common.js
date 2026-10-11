@@ -75,3 +75,14 @@ export function initSearchClear(input, onChange) {
   btn.onclick = () => { input.value = ""; sync(); onChange(); input.focus(); };
   sync();
 }
+
+// The only account that can add, edit or delete entries. Everyone else can only
+// view and copy. This just adapts the screen: the Firestore rules enforce it.
+const ADMIN_UID = "CCWG9pknTXPtJl4kbKQmaAqCTXG3";
+export const isAdmin = user => !!user && user.uid === ADMIN_UID;
+
+// Hides elements with class "admin-only" and makes the given fields read-only for viewers.
+export function applyRole(admin, fields) {
+  document.body.classList.toggle("viewer", !admin);
+  fields.forEach(el => { el.readOnly = !admin; });
+}
