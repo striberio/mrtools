@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools – Case</title>
 <!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 
-<div class="top"><div class="menuwrap hide" id="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">☰ Menu</button><nav class="menu hide" id="menu"></nav></div><button id="theme" type="button"></button><button id="out" type="button" class="hide">Esci</button></div>
+<div class="top"><div class="menuwrap hide" id="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">☰ Menu</button><nav class="menu hide" id="menu"></nav></div><button id="theme" type="button"></button><button id="out" type="button" class="hide">Esci</button><span class="who hide" id="who"></span></div>
 
 <div class="app hide" id="app">
   <div class="panel">
@@ -45,7 +45,7 @@
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear, isAdmin, applyRole } from "./common.js?v=9";
+import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear, isAdmin, applyRole } from "./common.js?v=10";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -165,6 +165,7 @@ onAuthStateChanged(auth, user => {
   if (!user) { if (unsub) unsub(); location.replace("index.html"); return; }
   $("app").classList.remove("hide"); $("out").classList.remove("hide"); $("menuwrap").classList.remove("hide");
   applyRole(isAdmin(user), [$("nm"), $("ct"), $("ad"), $("nt")]);
+  $("who").textContent = user.email || ""; $("who").title = user.email || ""; $("who").classList.remove("hide");
   unsub = onSnapshot(collection(db, COL), snap => {
     items = snap.docs.map(d => { const v = d.data({ serverTimestamps: "estimate" }); return { id: d.id, name: v.name || "", category: v.category || "", address: v.address || "", notes: v.notes || "", updated: v.updatedAt ? v.updatedAt.toDate() : null }; });
     items.sort((a, b) => byName(a.name, b.name));

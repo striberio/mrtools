@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRTools</title>
 <!-- Bump ?v= here and on the common.js import below whenever style.css or common.js changes -->
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 
-<div class="top"><div class="menuwrap hide" id="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">☰ Menu</button><nav class="menu hide" id="menu"></nav></div><button id="theme" type="button"></button><button id="out" type="button" class="hide">Esci</button></div>
+<div class="top"><div class="menuwrap hide" id="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">☰ Menu</button><nav class="menu hide" id="menu"></nav></div><button id="theme" type="button"></button><button id="out" type="button" class="hide">Esci</button><span class="who hide" id="who"></span></div>
 
 <div id="login" class="hide">
   <div class="panel">
@@ -36,22 +36,27 @@
     <div class="mute" id="empty"></div>
     <div id="ed" class="hide">
       <label for="nm" id="nmlbl"></label>
-      <input id="nm">
+      <div class="nameview view-only" id="nmview"></div>
+      <input id="nm" class="edit-only">
       <label for="tx" id="txlbl"></label>
       <div class="edited" id="edited"></div>
       <div class="ltabs" id="ltabs" role="tablist"></div>
-      <div class="mute nolang hide" id="nolang"><span class="admin-only">Nessuna lingua ancora: aggiungine una con +.</span><span class="viewer-only">Nessun testo per questa voce.</span></div>
-      <textarea id="tx"></textarea>
+      <div class="mute nolang hide" id="nolang"><span class="admin-only">Nessuna lingua ancora: clicchi Modifica e ne aggiunga una con +.</span><span class="viewer-only">Nessun testo per questa voce.</span></div>
+      <div class="textview view-only" id="txview"></div>
+      <textarea id="tx" class="edit-only"></textarea>
       <div class="row" id="copyrow"><button class="p" id="copy"></button></div>
       <div id="exwrap">
         <label for="ex">Note extra</label>
-        <textarea id="ex" class="notes"></textarea>
+        <div class="textview view-only" id="exview"></div>
+        <textarea id="ex" class="notes edit-only"></textarea>
         <div class="row"><button class="p" id="copyex">Copia note</button></div>
       </div>
       <div class="row">
         <div class="right admin-only">
           <span class="mute" id="msg"></span>
-          <button id="save">Salva modifiche</button>
+          <button id="edit" class="view-only">Modifica</button>
+          <button id="save" class="edit-only">Salva modifiche</button>
+          <button id="cancel" class="edit-only">Annulla</button>
           <button class="d" id="del">Elimina</button>
         </div>
       </div>
@@ -65,7 +70,7 @@
 </div>
 
 <script type="module">
-import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear, isAdmin, applyRole } from "./common.js?v=9";
+import { auth, db, formatWhen, initMenu, renderMenu, searchList, initSearchClear, isAdmin, applyRole } from "./common.js?v=10";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -80,6 +85,7 @@ const S = {
   saved: "Salvato ✓", saveFail: "Impossibile salvare", delFail: "Impossibile eliminare", copied: "Copiato ✓", copyFail: "Copia non riuscita",
   addFail: "Impossibile aggiungere: ", nothing: "Niente da importare", impFail: "Importazione non riuscita: ", loadFail: "Impossibile caricare i dati: ",
   imp: t => `Incolla più voci insieme. Separa le voci con una riga che contiene solo <b>###</b>. La prima riga di ogni blocco è il nome, il resto è ${t} (in ${FIRST_LANG}).`,
+  noText: "Nessun testo.", noNotes: "Nessuna nota.",
   renameHint: "Doppio clic per rinominare", renameLabel: "Nome della lingua", langExists: "Questa lingua c'è già in questa voce.",
   addLang: "Aggiungi lingua", newLang: "Nome della nuova lingua (es. Italiano):", removeLang: "Elimina questa lingua",
   confirmRemoveLang: l => `Eliminare la versione "${l}" da questa voce? Diventa definitivo quando salvi.`,
@@ -98,13 +104,15 @@ const items = () => data[cat];
 // Editor state for the open entry: its language versions, which one is shown,
 // whether anything changed since it was loaded or saved, and what was loaded.
 let draft = null, dirty = false, loaded = "";
-// Only the admin can edit; set at sign-in.
-let admin = false;
+// Only the admin can edit; set at sign-in. `editing` is true while the entry is in edit mode.
+let admin = false, editing = false;
 // Language tab to show first when opening an entry (the last one you picked).
 let prefLang = FIRST_LANG;
 try { prefLang = localStorage.getItem("mrtools.textLang") || FIRST_LANG; } catch (e) {}
 
 const esc = s => { const d = document.createElement("div"); d.textContent = s; return d.innerHTML.replace(/"/g, "&quot;"); };
+// Text for the reading view: escaped, with links made clickable.
+const linkify = s => esc(s).replace(/https?:\/\/[^\s<]+/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
 const newId = () => "h" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 function say(t) { $("msg").textContent = t; if (t) setTimeout(() => { if ($("msg").textContent === t) $("msg").textContent = ""; }, 2500); }
 function show(w) { $("empty").classList.toggle("hide", w !== "empty"); $("ed").classList.toggle("hide", w !== "ed"); $("imppane").classList.toggle("hide", w !== "imp"); }
@@ -143,8 +151,8 @@ function renderLangTabs() {
   $("ltabs").innerHTML = draft.texts.map((t, i) => {
     const on = i === draft.active;
     return `<button type="button" class="ltab${on ? " on" : ""}" role="tab" aria-selected="${on}" data-i="${i}" title="${S.renameHint}">${esc(t.lang)}` +
-      (many ? `<span class="lx admin-only" data-x="${i}" title="${S.removeLang}" aria-label="${S.removeLang}">×</span>` : "") + `</button>`;
-  }).join("") + `<button type="button" class="ltab add admin-only" data-add="1" title="${S.addLang}" aria-label="${S.addLang}">+</button>`;
+      (many ? `<span class="lx admin-only edit-only" data-x="${i}" title="${S.removeLang}" aria-label="${S.removeLang}">×</span>` : "") + `</button>`;
+  }).join("") + `<button type="button" class="ltab add admin-only edit-only" data-add="1" title="${S.addLang}" aria-label="${S.addLang}">+</button>`;
 }
 // Shows language i in the text box; -1 means the entry has no languages yet.
 function showLang(i) {
@@ -153,11 +161,26 @@ function showLang(i) {
   $("tx").classList.toggle("hide", none); $("exwrap").classList.toggle("hide", none); $("copyrow").classList.toggle("hide", none); $("nolang").classList.toggle("hide", !none);
   $("tx").value = none ? "" : draft.texts[i].text;
   $("ex").value = none ? "" : draft.texts[i].extra;
+  $("txview").classList.toggle("hide", none);
+  renderView();
   $("ltabs").querySelectorAll(".ltab[data-i]").forEach(b => { const on = +b.dataset.i === i; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
 }
 // Redraws the tabs (after languages were added, removed or renamed) and shows language i.
 function redraw(i) { draft.active = i; renderLangTabs(); showLang(i); }
 // draft.extra holds old whole-entry notes of an entry without tabs, until a language is added.
+// Reading view: the name, instructions and notes of the shown language as plain text.
+function renderView() {
+  const t = draft && draft.active >= 0 ? draft.texts[draft.active] : null;
+  $("nmview").textContent = $("nm").value || "(senza nome)";
+  $("txview").innerHTML = t && t.text.trim() ? linkify(t.text) : `<span class="mute">${S.noText}</span>`;
+  $("exview").innerHTML = t && t.extra.trim() ? linkify(t.extra) : `<span class="mute">${S.noNotes}</span>`;
+}
+// Switches the open entry between reading view and edit mode (admin only).
+function setEditing(on) {
+  editing = on && admin;
+  $("ed").classList.toggle("editing", editing);
+  if (!editing) renderView();
+}
 function load(x) {
   draft = { texts: x.texts.map(t => ({ ...t })), extra: x.extra, active: 0 };
   const i = draft.texts.findIndex(t => t.lang === prefLang);
@@ -166,9 +189,10 @@ function load(x) {
   dirty = false; loaded = JSON.stringify([x.name, x.texts, x.extra]);
 }
 function open(id) {
-  if (id !== sel && !okToLeave()) return;
+  if (id === sel && !$("ed").classList.contains("hide")) return;
+  if (!okToLeave()) return;
   const x = items().find(i => i.id === id); if (!x) return;
-  sel = id; load(x); showEdited(); show("ed"); renderList();
+  sel = id; load(x); setEditing(false); showEdited(); show("ed"); renderList();
 }
 
 $("list").addEventListener("click", e => { const n = e.target.closest(".item"); if (n) open(n.dataset.id); });
@@ -198,7 +222,7 @@ $("ltabs").addEventListener("click", e => {
 
 // Rename a language: double-click its tab (or F2), then Enter / click away to keep, Esc to cancel.
 function renameLang(i) {
-  if (!admin) return;
+  if (!admin || !editing) return;
   const b = $("ltabs").querySelector(`.ltab[data-i="${i}"]`); if (!b) return;
   const inp = document.createElement("input");
   inp.className = "lname"; inp.value = draft.texts[i].lang; inp.setAttribute("aria-label", S.renameLabel);
@@ -239,7 +263,7 @@ function applyText() {
   showEdited(); renderList();
 }
 function setCat(c) {
-  cat = c; sel = null; draft = null; dirty = false;
+  cat = c; sel = null; draft = null; dirty = false; setEditing(false);
   try { localStorage.setItem("mrtools.cat", c); } catch (e) {}
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.cat === c));
   delete $("empty").dataset.err;
@@ -263,7 +287,7 @@ $("add").onclick = async () => {
   const id = newId();
   try {
     await setDoc(doc(db, cat, id), { name: C().newName, texts: [], updatedAt: serverTimestamp() });
-    dirty = false; setTimeout(() => { open(id); $("nm").select(); }, 300);
+    dirty = false; setTimeout(() => { open(id); setEditing(true); $("nm").select(); }, 300);
   } catch (e) { alert(S.addFail + e.message); }
 };
 $("save").onclick = async () => {
@@ -275,8 +299,15 @@ $("save").onclick = async () => {
   if (extra) data.extra = extra;
   try {
     await setDoc(doc(db, cat, sel), data);
-    say(S.saved);
+    say(S.saved); setEditing(false);
   } catch (e) { dirty = true; say(S.saveFail); }
+};
+$("edit").onclick = () => setEditing(true);
+// Throws away unsaved changes and goes back to the reading view.
+$("cancel").onclick = () => {
+  const x = items().find(i => i.id === sel);
+  if (x) { if (draft.active >= 0) prefLang = draft.texts[draft.active].lang; load(x); }
+  setEditing(false);
 };
 $("del").onclick = async () => {
   if (!sel || !confirm(C().del)) return;
@@ -325,6 +356,7 @@ initMenu();
 onAuthStateChanged(auth, user => {
   if (user) {
     admin = isAdmin(user); applyRole(admin, [$("nm"), $("tx"), $("ex")]);
+    $("who").textContent = user.email || ""; $("who").title = user.email || ""; $("who").classList.remove("hide");
     $("login").classList.add("hide"); $("app").classList.remove("hide"); $("out").classList.remove("hide"); $("menuwrap").classList.remove("hide");
     unsubs = Object.keys(CATS).map(c => onSnapshot(collection(db, c), snap => {
       const list = snap.docs.map(toEntry);
@@ -339,7 +371,8 @@ onAuthStateChanged(auth, user => {
     }, err => { if (c === cat) { $("empty").dataset.err = 1; $("empty").textContent = S.loadFail + err.message; } }));
   } else {
     unsubs.forEach(u => u()); unsubs = [];
-    admin = false; applyRole(false, [$("nm"), $("tx"), $("ex")]);
+    admin = false; applyRole(false, [$("nm"), $("tx"), $("ex")]); setEditing(false);
+    $("who").classList.add("hide"); $("who").textContent = "";
     data = { houses: [], messages: [] }; sel = null; draft = null; dirty = false; show("empty");
     $("app").classList.add("hide"); $("out").classList.add("hide"); $("menuwrap").classList.add("hide"); $("login").classList.remove("hide");
   }

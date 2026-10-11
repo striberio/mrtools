@@ -5,6 +5,7 @@
 /* Light theme (default) */
 :root {
   --page: #d6e3f3;  /* page background behind the panels */
+  --frame: #5b6573; /* border around text in the reading view */
   --bg: #faf9f6;
   --card: #fff;
   --ink: #1f2328;
@@ -21,6 +22,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --page: #161816;
+    --frame: #7a827a;
     --bg: #161816;
     --card: #202320;
     --ink: #ececea;
@@ -37,6 +39,7 @@
 /* Dark theme, picked with the theme button */
 :root[data-theme="dark"] {
   --page: #161816;
+  --frame: #7a827a;
   --bg: #161816;
   --card: #202320;
   --ink: #ececea;
@@ -148,6 +151,27 @@ button.d {
 .top button {
   padding: 5px 12px;
   font-size: 13px;
+}
+
+/* Email of the signed-in user, right of "Esci" */
+.who {
+  align-self: center;
+  max-width: 240px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--mute);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 480px) {
+  .who {
+    max-width: 120px;
+  }
 }
 
 /* Menu on the left of the top bar */
@@ -443,6 +467,33 @@ textarea.notes {
 /* ==========================================================================
    Helpers
    ========================================================================== */
+
+/* Entry editor: reading view by default, edit mode after "Modifica" */
+#ed:not(.editing) .edit-only,
+#ed.editing .view-only {
+  display: none;
+}
+
+/* Name, instructions and notes shown as text in the reading view */
+.nameview {
+  font-size: 18px;
+  font-weight: 600;
+  padding: 2px 0 4px;
+}
+
+.textview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+}
+
+.textview a {
+  color: var(--acc);
+}
 
 /* Viewers (everyone but the admin) don't see editing controls */
 body.viewer .admin-only,
